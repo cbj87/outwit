@@ -1,6 +1,7 @@
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { useRouter } from 'expo-router';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { colors } from '@/theme/colors';
@@ -27,12 +28,12 @@ const RANK_COLORS: Record<number, string> = {
 
 type RankedEntry = PlayerScore & { rank: number; is_tied: boolean };
 
-function LeaderboardRow({ entry }: { entry: RankedEntry }) {
+function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () => void }) {
   const isTop3 = entry.rank <= 3;
   const rankColor = RANK_COLORS[entry.rank];
 
   return (
-    <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={onPress}>
       <View style={[styles.rankContainer, isTop3 && { backgroundColor: rankColor + '18' }]}>
         <Text style={[styles.rank, isTop3 && { color: rankColor }]}>
           {entry.rank}{entry.is_tied ? 'T' : ''}
@@ -53,6 +54,7 @@ function LeaderboardRow({ entry }: { entry: RankedEntry }) {
       <Text style={[styles.totalScore, isTop3 && { color: rankColor }]}>
         {entry.total_points}
       </Text>
+      <Text style={styles.chevron}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -74,9 +76,11 @@ function ListHeader({ config, insets }: { config: any; insets: any }) {
 }
 
 export default function LeaderboardScreen() {
+  const router = useRouter();
   const { config, isLoading: configLoading } = useSeasonConfig();
   const { entries, isLoading } = useLeaderboard(config?.picks_revealed ?? false);
   const insets = useSafeAreaInsets();
+  const picksRevealed = config?.picks_revealed ?? false;
 
   if (isLoading || configLoading) {
     return (
@@ -92,7 +96,12 @@ export default function LeaderboardScreen() {
         data={entries}
         keyExtractor={(item) => item.player_id}
         ListHeaderComponent={<ListHeader config={config} insets={insets} />}
-        renderItem={({ item }) => <LeaderboardRow entry={item} />}
+        renderItem={({ item }) => (
+          <LeaderboardRow
+            entry={item}
+            onPress={picksRevealed ? () => router.push(`/player/${item.player_id}`) : undefined}
+          />
+        )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
       />
@@ -147,5 +156,6 @@ const styles = StyleSheet.create({
   breakdownText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
   breakdownLabel: { color: colors.textMuted, fontWeight: '400' },
   totalScore: { color: colors.primary, fontSize: 20, fontWeight: '800', minWidth: 40, textAlign: 'right' },
+  chevron: { color: colors.textMuted, fontSize: 20 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginLeft: 60 },
 });
