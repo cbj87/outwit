@@ -1,0 +1,208 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useMyPicks } from '@/hooks/useMyPicks';
+import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useCastawayMap } from '@/hooks/useCastaways';
+import { PROPHECY_QUESTIONS, PROPHECY_POINTS } from '@/lib/constants';
+import { colors } from '@/theme/colors';
+
+export default function MyPicksScreen() {
+  const router = useRouter();
+  const { data, isLoading } = useMyPicks();
+  const { config, isPicksLocked } = useSeasonConfig();
+  const castawayMap = useCastawayMap();
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  // No picks submitted yet
+  if (!data?.picks) {
+    const deadline = config?.picks_deadline ? new Date(config.picks_deadline) : null;
+    const deadlinePassed = deadline ? new Date() > deadline : false;
+
+    return (
+      <View style={styles.centered}>
+        {deadlinePassed ? (
+          <>
+            <Text style={styles.emptyTitle}>Picks are locked</Text>
+            <Text style={styles.emptySubtitle}>The submission deadline has passed.</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.emptyTitle}>Submit Your Picks</Text>
+            {deadline && (
+              <Text style={styles.emptySubtitle}>
+                Deadline: {deadline.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.ctaButton}
+              onPress={() => router.push('/picks/submit')}
+            >
+              <Text style={styles.ctaButtonText}>Make My Picks</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    );
+  }
+
+  const { picks, prophecyAnswers, trioDetail, trioPoints, ickyPoints, prophecyPoints, totalPoints } = data;
+  const trio = [picks.trio_castaway_1, picks.trio_castaway_2, picks.trio_castaway_3];
+  const answersMap = new Map(prophecyAnswers.map((a) => [a.question_id, a.answer]));
+  const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Score summary */}
+      <View style={styles.scoreSummary}>
+        <ScorePill label="Trio" value={trioPoints} />
+        <ScorePill label="Icky" value={ickyPoints} />
+        <ScorePill label="Prophecy" value={prophecyPoints} />
+        <View style={styles.totalPill}>
+          <Text style={styles.totalValue}>{totalPoints}</Text>
+          <Text style={styles.totalLabel}>TOTAL</Text>
+        </View>
+      </View>
+
+      {/* Edit button */}
+      {!isPicksLocked && (
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => router.push('/picks/submit')}
+        >
+          <Text style={styles.editButtonText}>Edit Picks</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Trusted Trio */}
+      <SectionHeader title="Trusted Trio" points={trioPoints} />
+      {trio.map((castawayId) => {
+        const castaway = castawayMap.get(castawayId);
+        const points = trioDetailMap.get(castawayId) ?? 0;
+        return (
+          <CastawayRow
+            key={castawayId}
+            name={castaway?.name ?? '?'}
+            tribe={castaway?.tribe ?? '?'}
+            points={points}
+            isActive={castaway?.is_active ?? true}
+          />
+        );
+      })}
+
+      {/* Icky Pick */}
+      <SectionHeader title="Icky Pick" points={ickyPoints} />
+      {(() => {
+        const castaway = castawayMap.get(picks.icky_castaway);
+        return (
+          <CastawayRow
+            name={castaway?.name ?? '?'}
+            tribe={castaway?.tribe ?? '?'}
+            points={ickyPoints}
+            isActive={castaway?.is_active ?? true}
+            isIcky
+          />
+        );
+      })()}
+
+      {/* Prophecy Picks */}
+      <SectionHeader title="Prophecy Picks" points={prophecyPoints} />
+      {PROPHECY_QUESTIONS.map((q) => {
+        const answer = answersMap.get(q.id);
+        return (
+          <View key={q.id} style={styles.prophecyRow}>
+            <Text style={styles.prophecyText}>{q.text}</Text>
+            <View style={styles.prophecyRight}>
+              <Text style={[styles.prophecyAnswer, answer ? styles.answerYes : styles.answerNo]}>
+                {answer ? 'YES' : 'NO'}
+              </Text>
+              <Text style={styles.prophecyPoints}>+{q.points}pt</Text>
+            </View>
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+function ScorePill({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.scorePill}>
+      <Text style={[styles.pillValue, value < 0 && styles.negative]}>{value}</Text>
+      <Text style={styles.pillLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionHeader({ title, points }: { title: string; points: number }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionPoints, points < 0 && styles.negative]}>{points} pts</Text>
+    </View>
+  );
+}
+
+function CastawayRow({
+  name, tribe, points, isActive, isIcky,
+}: {
+  name: string;
+  tribe: string;
+  points: number;
+  isActive: boolean;
+  isIcky?: boolean;
+}) {
+  const tribeColor = tribe === 'VATU' ? colors.vatu : tribe === 'CILA' ? colors.cila : colors.kalo;
+  return (
+    <View style={styles.castawayRow}>
+      <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
+      <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
+      {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
+      <Text style={[styles.castawayPoints, points < 0 && styles.negative]}>
+        {points > 0 ? `+${points}` : points} pts
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingBottom: 32 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, gap: 12 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '700' },
+  emptySubtitle: { color: colors.textSecondary, fontSize: 14 },
+  ctaButton: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32, marginTop: 8 },
+  ctaButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  scoreSummary: { flexDirection: 'row', backgroundColor: colors.surface, padding: 16, gap: 8 },
+  scorePill: { flex: 1, backgroundColor: colors.surfaceElevated, borderRadius: 8, padding: 10, alignItems: 'center' },
+  pillValue: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
+  pillLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginTop: 2 },
+  totalPill: { backgroundColor: colors.primary + '22', borderRadius: 8, padding: 10, alignItems: 'center', minWidth: 64 },
+  totalValue: { color: colors.primary, fontSize: 22, fontWeight: '900' },
+  totalLabel: { color: colors.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  editButton: { margin: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  editButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
+  sectionTitle: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  sectionPoints: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  castawayRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, paddingHorizontal: 16, paddingVertical: 14, marginHorizontal: 16, marginBottom: 2, borderRadius: 8, gap: 10 },
+  tribeDot: { width: 8, height: 8, borderRadius: 4 },
+  castawayName: { flex: 1, color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  eliminated: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  eliminatedBadge: { color: colors.error, fontSize: 10, fontWeight: '800' },
+  castawayPoints: { color: colors.scorePositive, fontSize: 14, fontWeight: '700' },
+  negative: { color: colors.scoreNegative },
+  prophecyRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, marginHorizontal: 16, marginBottom: 2, borderRadius: 8, gap: 8 },
+  prophecyText: { flex: 1, color: colors.textPrimary, fontSize: 13 },
+  prophecyRight: { alignItems: 'flex-end', gap: 2 },
+  prophecyAnswer: { fontSize: 12, fontWeight: '800' },
+  answerYes: { color: colors.success },
+  answerNo: { color: colors.error },
+  prophecyPoints: { color: colors.textMuted, fontSize: 10 },
+});
