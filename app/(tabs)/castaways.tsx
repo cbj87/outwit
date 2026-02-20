@@ -89,7 +89,7 @@ export default function CastawaysScreen() {
           </TouchableOpacity>
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
       />
     </View>
   );

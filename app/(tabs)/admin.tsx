@@ -77,7 +77,7 @@ export default function AdminScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Commissioner Panel</Text>
         <Text style={styles.headerSubtitle}>Outwit Open — Season 50</Text>

@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,7 @@ type ShotResult = 'success' | 'fail';
 export default function EpisodeScreen() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { byTribe, castaways, isLoading: castawaysLoading } = useCastawaysByTribe();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [episodeId, setEpisodeId] = useState<number | null>(null);
@@ -752,7 +754,7 @@ export default function EpisodeScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={[styles.finalizeButton, isFinalizing && styles.disabled]}
           onPress={handleFinalize}

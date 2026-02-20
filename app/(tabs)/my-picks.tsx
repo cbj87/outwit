@@ -70,7 +70,7 @@ export default function MyPicksScreen() {
   const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom }]}>
+    <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
       {/* Score summary */}
       <View style={styles.scoreSummary}>
         <Glass style={styles.scorePill}>

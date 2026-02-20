@@ -103,7 +103,7 @@ export default function LeaderboardScreen() {
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
       />
     </View>
   );
