@@ -1,8 +1,23 @@
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { colors } from '@/theme/colors';
 import type { PlayerScore } from '@/types';
+
+const glassAvailable = isLiquidGlassAvailable();
+
+function Glass({ style, children, tintColor }: { style?: any; children: React.ReactNode; tintColor?: string }) {
+  if (glassAvailable) {
+    return (
+      <GlassView style={style} tintColor={tintColor} colorScheme="light">
+        {children}
+      </GlassView>
+    );
+  }
+  return <View style={style}>{children}</View>;
+}
 
 function ScoreCell({ value, label }: { value: number; label: string }) {
   return (
@@ -37,6 +52,7 @@ function LeaderboardRow({ entry, onPress }: { entry: PlayerScore & { rank: numbe
 export default function LeaderboardScreen() {
   const { config, isLoading: configLoading } = useSeasonConfig();
   const { entries, isLoading } = useLeaderboard(config?.picks_revealed ?? false);
+  const insets = useSafeAreaInsets();
 
   if (isLoading || configLoading) {
     return (
@@ -47,26 +63,24 @@ export default function LeaderboardScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header info */}
-      <View style={styles.headerInfo}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Glass style={styles.headerInfo} tintColor={colors.primary + '18'}>
         <Text style={styles.episodeLabel}>
           {config?.current_episode ? `Episode ${config.current_episode}` : 'Pre-Season'}
         </Text>
         {!config?.picks_revealed && (
           <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
         )}
-      </View>
+      </Glass>
 
-      {/* Column headers */}
-      <View style={styles.columnHeaders}>
+      <Glass style={styles.columnHeaders}>
         <Text style={[styles.colHeader, { width: 36 }]}>#</Text>
         <Text style={[styles.colHeader, { flex: 1 }]}>Player</Text>
         <Text style={[styles.colHeader, styles.colRight]}>Trio</Text>
         <Text style={[styles.colHeader, styles.colRight]}>Icky</Text>
         <Text style={[styles.colHeader, styles.colRight]}>Proph</Text>
         <Text style={[styles.colHeader, styles.colRight, { width: 52 }]}>Total</Text>
-      </View>
+      </Glass>
 
       <FlatList
         data={entries}
@@ -80,51 +94,35 @@ export default function LeaderboardScreen() {
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom }]}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   headerInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderGlass,
+    overflow: 'hidden',
   },
-  episodeLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  hiddenNote: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontStyle: 'italic',
-  },
+  episodeLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  hiddenNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
   columnHeaders: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: colors.surfaceElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderGlass,
+    overflow: 'hidden',
   },
   colHeader: {
     color: colors.textMuted,
@@ -134,65 +132,24 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     width: 42,
   },
-  colRight: {
-    textAlign: 'right',
-  },
-  list: {
-    paddingBottom: 16,
-  },
+  colRight: { textAlign: 'right' },
+  list: { paddingBottom: 16 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
-  rankContainer: {
-    width: 36,
-  },
-  rank: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  rankFirst: {
-    color: colors.primary,
-    fontSize: 16,
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerName: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  scoreCell: {
-    width: 42,
-    alignItems: 'center',
-  },
-  scoreCellValue: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scoreCellLabel: {
-    color: colors.textMuted,
-    fontSize: 9,
-    letterSpacing: 0.3,
-  },
-  totalContainer: {
-    width: 52,
-    alignItems: 'center',
-  },
-  totalScore: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginHorizontal: 16,
-  },
+  rankContainer: { width: 36 },
+  rank: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },
+  rankFirst: { color: colors.primary, fontSize: 16 },
+  playerInfo: { flex: 1 },
+  playerName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  scoreCell: { width: 42, alignItems: 'center' },
+  scoreCellValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
+  scoreCellLabel: { color: colors.textMuted, fontSize: 9, letterSpacing: 0.3 },
+  totalContainer: { width: 52, alignItems: 'center' },
+  totalScore: { color: colors.primary, fontSize: 16, fontWeight: '800' },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginHorizontal: 16 },
 });

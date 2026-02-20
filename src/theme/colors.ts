@@ -1,4 +1,4 @@
-// Survivor-themed dark mode color palette
+// Survivor-themed light mode color palette
 export const colors = {
   // Brand — torch red
   primary: '#C4402F',
@@ -10,27 +10,32 @@ export const colors = {
   cila: '#1565C0',    // ocean blue
   kalo: '#F57F17',    // warm amber
 
-  // Backgrounds
-  background: '#0A0A0A',
-  surface: '#1A1A1A',
-  surfaceElevated: '#242424',
-  border: '#333333',
+  // Backgrounds — light theme
+  background: '#F2F2F7',      // iOS system grouped background
+  surface: '#FFFFFF',          // card/row background
+  surfaceElevated: '#FFFFFF',  // elevated surfaces
+  border: '#E0E0E5',           // subtle separator
+
+  // Glass surfaces
+  surfaceGlass: 'rgba(255, 255, 255, 0.7)',
+  borderGlass: 'rgba(0, 0, 0, 0.08)',
+  primaryGlass: 'rgba(196, 64, 47, 0.12)',
 
   // Text
-  textPrimary: '#FFFFFF',
-  textSecondary: '#A0A0A0',
-  textMuted: '#606060',
+  textPrimary: '#1C1C1E',      // iOS label
+  textSecondary: '#6C6C70',    // iOS secondary label
+  textMuted: '#AEAEB2',        // iOS tertiary label
 
   // Feedback
-  success: '#4CAF50',
-  error: '#F44336',
-  warning: '#FF9800',
-  pending: '#9E9E9E',
+  success: '#34C759',          // iOS green
+  error: '#FF3B30',            // iOS red
+  warning: '#FF9500',          // iOS orange
+  pending: '#AEAEB2',
 
   // Score display
-  scorePositive: '#4CAF50',
-  scoreNegative: '#F44336',
-  scoreNeutral: '#9E9E9E',
+  scorePositive: '#34C759',
+  scoreNegative: '#FF3B30',
+  scoreNeutral: '#AEAEB2',
 } as const;
 
 export const tribeColors: Record<'VATU' | 'CILA' | 'KALO', string> = {
