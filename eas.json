@@ -17,7 +17,11 @@
       }
     },
     "production": {
-      "distribution": "store"
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://lzlhxzsbkrtkkzcirkkc.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_gi0Rghx3M6_CwRJi3S6ffQ_kbm2XwtF"
+      }
     }
   },
   "submit": {
