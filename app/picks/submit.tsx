@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, Switch,
+  Alert, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ export default function SubmitPicksScreen() {
   const [selectedIcky, setSelectedIcky] = useState<number | null>(
     existingPicks?.picks?.icky_castaway ?? null,
   );
-  const [prophecyAnswers, setProphecyAnswers] = useState<Record<number, boolean>>(
+  const [prophecyAnswers, setProphecyAnswers] = useState<Record<number, boolean | null>>(
     Object.fromEntries(
       existingPicks?.prophecyAnswers.map((a) => [a.question_id, a.answer]) ?? [],
     ),
@@ -72,19 +72,25 @@ export default function SubmitPicksScreen() {
   function canProceed(): boolean {
     if (step === 0) return selectedTrio.length === 3;
     if (step === 1) return selectedIcky !== null && !selectedTrio.includes(selectedIcky);
-    if (step === 2) return Object.keys(prophecyAnswers).length === 16;
+    if (step === 2) return true;
     return false;
   }
 
   async function handleSubmit() {
     if (!userId) return;
 
+    // Only include prophecy answers the user actually chose (not null)
+    const answeredProphecies: Record<number, boolean> = {};
+    for (const [qId, val] of Object.entries(prophecyAnswers)) {
+      if (val !== null) answeredProphecies[Number(qId)] = val;
+    }
+
     const submission = {
       trio_castaway_1: selectedTrio[0],
       trio_castaway_2: selectedTrio[1],
       trio_castaway_3: selectedTrio[2],
       icky_castaway: selectedIcky!,
-      prophecy_answers: prophecyAnswers,
+      prophecy_answers: answeredProphecies,
     };
 
     const result = picksSubmissionSchema.safeParse(submission);
@@ -108,7 +114,7 @@ export default function SubmitPicksScreen() {
       if (picksError) throw picksError;
 
       // Upsert prophecy answers (delete+insert to handle edits cleanly)
-      const answersToInsert = Object.entries(prophecyAnswers).map(([qId, answer]) => ({
+      const answersToInsert = Object.entries(answeredProphecies).map(([qId, answer]) => ({
         player_id: userId,
         question_id: parseInt(qId, 10),
         answer,
@@ -277,29 +283,38 @@ function StepIckyPick({
   );
 }
 
-function StepProphecy({ answers, onChange }: { answers: Record<number, boolean>; onChange: (qId: number, val: boolean) => void }) {
+function StepProphecy({ answers, onChange }: { answers: Record<number, boolean | null>; onChange: (qId: number, val: boolean) => void }) {
   return (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Prophecy Picks</Text>
-      <Text style={styles.stepSubtitle}>Answer all 16 predictions. Correct = points, wrong = 0.</Text>
-      {PROPHECY_QUESTIONS.map((q) => (
-        <View key={q.id} style={styles.prophecyRow}>
-          <View style={styles.prophecyLeft}>
-            <Text style={styles.prophecyText}>{q.text}</Text>
-            <Text style={styles.prophecyPoints}>{q.points} {q.points === 1 ? 'point' : 'points'}</Text>
+      <Text style={styles.stepSubtitle}>Predict yes or no for each. Correct = points, wrong = 0.</Text>
+      {PROPHECY_QUESTIONS.map((q) => {
+        const value = answers[q.id] ?? null;
+        return (
+          <View key={q.id} style={styles.prophecyRow}>
+            <View style={styles.prophecyLeft}>
+              <Text style={styles.prophecyText}>{q.text}</Text>
+              <Text style={styles.prophecyPoints}>{q.points} {q.points === 1 ? 'point' : 'points'}</Text>
+            </View>
+            <View style={styles.prophecyToggle}>
+              <TouchableOpacity
+                style={[styles.toggleButton, styles.toggleNo, value === false && styles.toggleNoActive]}
+                onPress={() => onChange(q.id, false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.toggleButtonText, value === false && styles.toggleNoText]}>NO</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleButton, styles.toggleYes, value === true && styles.toggleYesActive]}
+                onPress={() => onChange(q.id, true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.toggleButtonText, value === true && styles.toggleYesText]}>YES</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.prophecyToggle}>
-            <Text style={[styles.toggleLabel, answers[q.id] === false && styles.toggleLabelActive]}>NO</Text>
-            <Switch
-              value={answers[q.id] === true}
-              onValueChange={(val) => onChange(q.id, val)}
-              trackColor={{ false: colors.surfaceElevated, true: colors.primary }}
-              thumbColor={colors.textPrimary}
-            />
-            <Text style={[styles.toggleLabel, answers[q.id] === true && styles.toggleLabelActive]}>YES</Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -358,6 +373,12 @@ const styles = StyleSheet.create({
   prophecyText: { color: colors.textPrimary, fontSize: 13 },
   prophecyPoints: { color: colors.textMuted, fontSize: 11 },
   prophecyToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  toggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', width: 24, textAlign: 'center' },
-  toggleLabelActive: { color: colors.textPrimary },
+  toggleButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: colors.border, minWidth: 44, alignItems: 'center' },
+  toggleButtonText: { fontSize: 11, fontWeight: '700', color: colors.textMuted },
+  toggleNo: {},
+  toggleNoActive: { backgroundColor: colors.error + '22', borderColor: colors.error },
+  toggleNoText: { color: colors.error },
+  toggleYes: {},
+  toggleYesActive: { backgroundColor: colors.success + '22', borderColor: colors.success },
+  toggleYesText: { color: colors.success },
 });

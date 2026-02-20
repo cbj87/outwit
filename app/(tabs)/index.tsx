@@ -19,33 +19,57 @@ function Glass({ style, children, tintColor }: { style?: any; children: React.Re
   return <View style={style}>{children}</View>;
 }
 
-function ScoreCell({ value, label }: { value: number; label: string }) {
-  return (
-    <View style={styles.scoreCell}>
-      <Text style={styles.scoreCellValue}>{value}</Text>
-      <Text style={styles.scoreCellLabel}>{label}</Text>
-    </View>
-  );
-}
+const RANK_COLORS: Record<number, string> = {
+  1: '#D4A017',
+  2: '#8A8A8A',
+  3: '#B87333',
+};
 
-function LeaderboardRow({ entry, onPress }: { entry: PlayerScore & { rank: number; is_tied: boolean }; onPress: () => void }) {
+type RankedEntry = PlayerScore & { rank: number; is_tied: boolean };
+
+function LeaderboardRow({ entry }: { entry: RankedEntry }) {
+  const isTop3 = entry.rank <= 3;
+  const rankColor = RANK_COLORS[entry.rank];
+
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.rankContainer}>
-        <Text style={[styles.rank, entry.rank === 1 && styles.rankFirst]}>
+    <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+      <View style={[styles.rankContainer, isTop3 && { backgroundColor: rankColor + '18' }]}>
+        <Text style={[styles.rank, isTop3 && { color: rankColor }]}>
           {entry.rank}{entry.is_tied ? 'T' : ''}
         </Text>
       </View>
       <View style={styles.playerInfo}>
-        <Text style={styles.playerName}>{entry.display_name}</Text>
+        <Text style={[styles.playerName, entry.rank === 1 && styles.playerNameFirst]}>
+          {entry.display_name}
+        </Text>
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownText}>
+            {entry.trio_points}<Text style={styles.breakdownLabel}> Trio</Text>
+            {'   '}{entry.icky_points}<Text style={styles.breakdownLabel}> Icky</Text>
+            {'   '}{entry.prophecy_points}<Text style={styles.breakdownLabel}> Proph</Text>
+          </Text>
+        </View>
       </View>
-      <ScoreCell value={entry.trio_points} label="Trio" />
-      <ScoreCell value={entry.icky_points} label="Icky" />
-      <ScoreCell value={entry.prophecy_points} label="Proph" />
-      <View style={styles.totalContainer}>
-        <Text style={styles.totalScore}>{entry.total_points}</Text>
-      </View>
+      <Text style={[styles.totalScore, isTop3 && { color: rankColor }]}>
+        {entry.total_points}
+      </Text>
     </TouchableOpacity>
+  );
+}
+
+function ListHeader({ config, insets }: { config: any; insets: any }) {
+  return (
+    <View style={{ paddingTop: insets.top + 8, backgroundColor: colors.background }}>
+      <Text style={styles.screenTitle}>Leaderboard</Text>
+      <Glass style={styles.episodeBanner} tintColor={colors.primary + '18'}>
+        <Text style={styles.episodeLabel}>
+          {config?.current_episode ? `Episode ${config.current_episode}` : 'Pre-Season'}
+        </Text>
+        {!config?.picks_revealed && (
+          <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
+        )}
+      </Glass>
+    </View>
   );
 }
 
@@ -63,38 +87,14 @@ export default function LeaderboardScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Glass style={styles.headerInfo} tintColor={colors.primary + '18'}>
-        <Text style={styles.episodeLabel}>
-          {config?.current_episode ? `Episode ${config.current_episode}` : 'Pre-Season'}
-        </Text>
-        {!config?.picks_revealed && (
-          <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
-        )}
-      </Glass>
-
-      <Glass style={styles.columnHeaders}>
-        <Text style={[styles.colHeader, { width: 36 }]}>#</Text>
-        <Text style={[styles.colHeader, { flex: 1 }]}>Player</Text>
-        <Text style={[styles.colHeader, styles.colRight]}>Trio</Text>
-        <Text style={[styles.colHeader, styles.colRight]}>Icky</Text>
-        <Text style={[styles.colHeader, styles.colRight]}>Proph</Text>
-        <Text style={[styles.colHeader, styles.colRight, { width: 52 }]}>Total</Text>
-      </Glass>
-
+    <View style={styles.container}>
       <FlatList
         data={entries}
         keyExtractor={(item) => item.player_id}
-        renderItem={({ item }) => (
-          <LeaderboardRow
-            entry={item}
-            onPress={() => {
-              // TODO: open score breakdown modal
-            }}
-          />
-        )}
+        ListHeaderComponent={<ListHeader config={config} insets={insets} />}
+        renderItem={({ item }) => <LeaderboardRow entry={item} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom }]}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 16 }]}
       />
     </View>
   );
@@ -103,36 +103,26 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-  headerInfo: {
+  screenTitle: {
+    color: colors.textPrimary,
+    fontSize: 34,
+    fontWeight: '800',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  episodeBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderGlass,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   episodeLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   hiddenNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
-  columnHeaders: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderGlass,
-    overflow: 'hidden',
-  },
-  colHeader: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textAlign: 'right',
-    width: 42,
-  },
-  colRight: { textAlign: 'right' },
   list: { paddingBottom: 16 },
   row: {
     flexDirection: 'row',
@@ -140,16 +130,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: colors.surface,
+    gap: 12,
   },
-  rankContainer: { width: 36 },
+  rankContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   rank: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },
-  rankFirst: { color: colors.primary, fontSize: 16 },
-  playerInfo: { flex: 1 },
-  playerName: { color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
-  scoreCell: { width: 42, alignItems: 'center' },
-  scoreCellValue: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  scoreCellLabel: { color: colors.textMuted, fontSize: 9, letterSpacing: 0.3 },
-  totalContainer: { width: 52, alignItems: 'center' },
-  totalScore: { color: colors.primary, fontSize: 16, fontWeight: '800' },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginHorizontal: 16 },
+  playerInfo: { flex: 1, gap: 2 },
+  playerName: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  playerNameFirst: { fontWeight: '800' },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center' },
+  breakdownText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  breakdownLabel: { color: colors.textMuted, fontWeight: '400' },
+  totalScore: { color: colors.primary, fontSize: 20, fontWeight: '800', minWidth: 40, textAlign: 'right' },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginLeft: 60 },
 });

@@ -37,7 +37,7 @@ function AuthGate() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="picks/submit" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="castaways/[id]" options={{ presentation: 'card', headerShown: true, headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.textPrimary }} />
+      <Stack.Screen name="castaways/[id]" options={{ presentation: 'card', headerShown: true, title: '', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
       <Stack.Screen name="admin/episode" options={{ presentation: 'card', headerShown: true, title: 'Log Episode', headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.textPrimary }} />
       <Stack.Screen name="admin/prophecy" options={{ presentation: 'card', headerShown: true, title: 'Prophecy Outcomes', headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.textPrimary }} />
       <Stack.Screen name="admin/reveal" options={{ presentation: 'card', headerShown: true, title: 'Reveal Picks', headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.textPrimary }} />

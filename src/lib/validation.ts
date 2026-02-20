@@ -9,9 +9,9 @@ export const picksSubmissionSchema = z
     prophecy_answers: z.record(z.coerce.number(), z.boolean()).refine(
       (answers) => {
         const keys = Object.keys(answers).map(Number);
-        return keys.length === 16 && keys.every((k) => k >= 1 && k <= 16);
+        return keys.length <= 16 && keys.every((k) => k >= 1 && k <= 16);
       },
-      { message: 'All 16 prophecy questions must be answered' },
+      { message: 'Prophecy answers must be for questions 1–16' },
     ),
   })
   .refine(
