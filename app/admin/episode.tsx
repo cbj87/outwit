@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, ActivityIndicator,
+  Alert, ActivityIndicator,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -11,10 +11,8 @@ import { EVENT_LABELS } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
 import type { Castaway, EventType, Tribe } from '@/types';
 
-// Milestone events shown as individual toggles in the Milestones card
-const MILESTONE_EVENTS: EventType[] = [
-  'first_boot',
-  'made_jury',
+// Finale-only milestones
+const FINALE_MILESTONES: EventType[] = [
   'fire_making_win',
   'final_immunity_win',
   'placed_3rd',
@@ -34,10 +32,13 @@ export default function EpisodeScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
+  // Episode flags
+  const [isMerge, setIsMerge] = useState(false);
+  const [isFinale, setIsFinale] = useState(false);
+
   // Category state
   const [votedOff, setVotedOff] = useState<Set<number>>(new Set());
   const [votedOffDetails, setVotedOffDetails] = useState<Record<number, Set<string>>>({});
-  const [quitPlayers, setQuitPlayers] = useState<Set<number>>(new Set());
   const [immunityWinners, setImmunityWinners] = useState<Set<number>>(new Set());
   const [rewardWinners, setRewardWinners] = useState<Set<number>>(new Set());
   const [idolsFound, setIdolsFound] = useState<Set<number>>(new Set());
@@ -48,6 +49,8 @@ export default function EpisodeScreen() {
 
   // Expanded card state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set(['votedOff']));
+  const [showEpisodeOptions, setShowEpisodeOptions] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
   // Fetch previously logged episodes
   const { data: pastEpisodes } = useQuery({
@@ -55,7 +58,7 @@ export default function EpisodeScreen() {
     queryFn: async () => {
       const { data } = await supabase
         .from('episodes')
-        .select('id, episode_number, is_finalized, created_at')
+        .select('id, episode_number, is_finalized, is_merge, is_finale, created_at')
         .order('episode_number', { ascending: true });
       return data ?? [];
     },
@@ -66,11 +69,19 @@ export default function EpisodeScreen() {
     [castaways],
   );
 
+  // For all cards except "Voted Off & Quit", exclude anyone selected as departed this episode
+  const remainingCastaways = useMemo(
+    () => activeCastaways.filter((c) => !votedOff.has(c.id)),
+    [activeCastaways, votedOff],
+  );
+
   const castawayMap = useMemo(() => {
     const map: Record<number, Castaway> = {};
     (castaways ?? []).forEach((c: Castaway) => { map[c.id] = c; });
     return map;
   }, [castaways]);
+
+  const episodeNum = parseInt(episodeNumber, 10) || 0;
 
   const toggleCard = useCallback((card: string) => {
     setExpandedCards((prev) => {
@@ -157,23 +168,22 @@ export default function EpisodeScreen() {
     const add = (castawayId: number, event: EventType) =>
       result.push({ episode_id: episodeId, castaway_id: castawayId, event_type: event });
 
-    // Survived: everyone active who wasn't voted off or quit
+    // Survived: everyone active who wasn't voted off / quit
     activeCastaways.forEach((c: Castaway) => {
-      if (!votedOff.has(c.id) && !quitPlayers.has(c.id)) {
+      if (!votedOff.has(c.id)) {
         add(c.id, 'survived_episode');
       }
     });
 
-    // Voted off details
+    // Departure details (voted off + quit are both in votedOff set now)
     votedOff.forEach((id) => {
       const details = votedOffDetails[id];
+      if (details?.has('quit')) add(id, 'quit');
       if (details?.has('unanimous')) add(id, 'voted_out_unanimously');
       if (details?.has('idol')) add(id, 'voted_out_with_idol');
       if (details?.has('advantage')) add(id, 'voted_out_with_advantage');
+      if (details?.has('first_boot')) add(id, 'first_boot');
     });
-
-    // Quit
-    quitPlayers.forEach((id) => add(id, 'quit'));
 
     // Immunity & Reward
     immunityWinners.forEach((id) => add(id, 'individual_immunity_win'));
@@ -201,14 +211,9 @@ export default function EpisodeScreen() {
     return result;
   }
 
-  // --- Episode creation (unchanged) ---
+  // --- Episode creation / resume ---
 
-  async function createEpisode() {
-    const num = parseInt(episodeNumber, 10);
-    if (!num || num < 1) {
-      Alert.alert('Error', 'Enter a valid episode number.');
-      return;
-    }
+  async function startEpisode(num: number) {
     setIsCreating(true);
     const { data, error } = await supabase
       .from('episodes')
@@ -220,8 +225,104 @@ export default function EpisodeScreen() {
     if (error) {
       Alert.alert('Error', error.message);
     } else {
+      setEpisodeNumber(String(num));
       setEpisodeId(data.id);
+      setIsMerge(data.is_merge ?? false);
+      setIsFinale(data.is_finale ?? false);
     }
+  }
+
+  function resumeEpisode(ep: { id: number; episode_number: number; is_merge?: boolean; is_finale?: boolean }) {
+    setEpisodeNumber(String(ep.episode_number));
+    setEpisodeId(ep.id);
+    setIsMerge(ep.is_merge ?? false);
+    setIsFinale(ep.is_finale ?? false);
+  }
+
+  async function openEpisode(ep: { id: number; episode_number: number; is_merge?: boolean; is_finale?: boolean }) {
+    setIsLoadingEvents(true);
+    setEpisodeNumber(String(ep.episode_number));
+    setEpisodeId(ep.id);
+    setIsMerge(ep.is_merge ?? false);
+    setIsFinale(ep.is_finale ?? false);
+
+    // Load saved events and hydrate category state
+    const { data: events } = await supabase
+      .from('castaway_events')
+      .select('castaway_id, event_type')
+      .eq('episode_id', ep.id);
+
+    if (events) {
+      const off = new Set<number>();
+      const offDetails: Record<number, Set<string>> = {};
+      const immunity = new Set<number>();
+      const reward = new Set<number>();
+      const idolF = new Set<number>();
+      const advF = new Set<number>();
+      const idolP: Record<number, IdolPlayResult> = {};
+      const sitd: Record<number, ShotResult> = {};
+      const mile: Record<string, Set<number>> = {};
+
+      for (const { castaway_id, event_type } of events) {
+        switch (event_type) {
+          case 'survived_episode': break; // inferred, skip
+          case 'quit':
+          case 'voted_out_unanimously':
+          case 'voted_out_with_idol':
+          case 'voted_out_with_advantage':
+          case 'first_boot': {
+            off.add(castaway_id);
+            if (!offDetails[castaway_id]) offDetails[castaway_id] = new Set();
+            const detailKey =
+              event_type === 'quit' ? 'quit' :
+              event_type === 'voted_out_unanimously' ? 'unanimous' :
+              event_type === 'voted_out_with_idol' ? 'idol' :
+              event_type === 'voted_out_with_advantage' ? 'advantage' :
+              'first_boot';
+            offDetails[castaway_id].add(detailKey);
+            break;
+          }
+          case 'individual_immunity_win': immunity.add(castaway_id); break;
+          case 'individual_reward_win': reward.add(castaway_id); break;
+          case 'idol_found': idolF.add(castaway_id); break;
+          case 'advantage_found': advF.add(castaway_id); break;
+          case 'idol_played_correct': idolP[castaway_id] = 'correct'; break;
+          case 'idol_played_incorrect': idolP[castaway_id] = 'incorrect'; break;
+          case 'shot_in_dark_success': sitd[castaway_id] = 'success'; break;
+          case 'shot_in_dark_fail': sitd[castaway_id] = 'fail'; break;
+          default: {
+            // Milestones (made_jury, fire_making_win, etc.)
+            if (!mile[event_type]) mile[event_type] = new Set();
+            mile[event_type].add(castaway_id);
+            break;
+          }
+        }
+      }
+
+      // Also add castaways who survived=false (not in survived_episode) to votedOff
+      // if they don't already have a departure detail
+      const survivedIds = new Set(
+        events.filter((e) => e.event_type === 'survived_episode').map((e) => e.castaway_id),
+      );
+      const allActive = (castaways ?? []).filter((c: Castaway) => c.is_active || off.has(c.id));
+      for (const c of allActive) {
+        if (!survivedIds.has(c.id) && !off.has(c.id)) {
+          off.add(c.id);
+        }
+      }
+
+      setVotedOff(off);
+      setVotedOffDetails(offDetails);
+      setImmunityWinners(immunity);
+      setRewardWinners(reward);
+      setIdolsFound(idolF);
+      setAdvantagesFound(advF);
+      setIdolPlays(idolP);
+      setShotInDark(sitd);
+      setMilestones(mile);
+    }
+
+    setIsLoadingEvents(false);
   }
 
   // --- Finalization (unchanged logic) ---
@@ -251,8 +352,16 @@ export default function EpisodeScreen() {
 
               await supabase
                 .from('episodes')
-                .update({ is_finalized: true })
+                .update({ is_finalized: true, is_merge: isMerge, is_finale: isFinale })
                 .eq('id', episodeId);
+
+              // Mark departed castaways as inactive
+              if (votedOff.size > 0) {
+                await supabase
+                  .from('castaways')
+                  .update({ is_active: false })
+                  .in('id', Array.from(votedOff));
+              }
 
               await supabase
                 .from('season_config')
@@ -296,57 +405,74 @@ export default function EpisodeScreen() {
 
   // --- Loading ---
 
-  if (castawaysLoading || !byTribe) {
+  if (castawaysLoading || !byTribe || isLoadingEvents) {
     return <View style={styles.centered}><ActivityIndicator color={colors.primary} size="large" /></View>;
   }
 
-  // --- Episode number entry ---
+  // --- Episode list / entry ---
+
+  // Determine next episode number: highest finalized + 1 (or 1 if none)
+  const highestFinalized = (pastEpisodes ?? [])
+    .filter((ep) => ep.is_finalized)
+    .reduce((max, ep) => Math.max(max, ep.episode_number), 0);
+  const draftEpisode = (pastEpisodes ?? []).find((ep) => !ep.is_finalized);
+  const finaleFinalized = (pastEpisodes ?? []).some((ep) => ep.is_finale && ep.is_finalized);
+  const nextEpisodeNumber = highestFinalized + 1;
+  // Show "new episode" button only if there's no existing draft and season isn't over
+  const canStartNew = !draftEpisode && !finaleFinalized;
 
   if (!episodeId) {
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.episodeSetup}>
-          {/* Past episodes */}
-          {pastEpisodes && pastEpisodes.length > 0 && (
+          {/* Past finalized episodes */}
+          {pastEpisodes && pastEpisodes.some((ep) => ep.is_finalized) && (
             <View style={styles.pastEpisodesSection}>
               <Text style={styles.pastEpisodesTitle}>Logged Episodes</Text>
-              {pastEpisodes.map((ep) => (
-                <View key={ep.id} style={styles.pastEpisodeRow}>
+              {pastEpisodes.filter((ep) => ep.is_finalized).map((ep) => (
+                <TouchableOpacity key={ep.id} style={styles.pastEpisodeRow} onPress={() => openEpisode(ep)}>
                   <View style={styles.pastEpisodeInfo}>
-                    <Text style={styles.pastEpisodeNumber}>Episode {ep.episode_number}</Text>
-                    <Text style={styles.pastEpisodeStatus}>
-                      {ep.is_finalized ? 'Finalized' : 'Draft'}
+                    <Text style={styles.pastEpisodeNumber}>
+                      Episode {ep.episode_number}
+                      {ep.is_merge ? '  ·  Merge' : ''}
+                      {ep.is_finale ? '  ·  Finale' : ''}
                     </Text>
+                    <Text style={styles.pastEpisodeStatus}>Finalized — tap to view</Text>
                   </View>
-                  <View style={[styles.statusDot, ep.is_finalized ? styles.statusFinalized : styles.statusDraft]} />
-                </View>
+                  <Text style={styles.chevron}>{'▸'}</Text>
+                </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {/* New episode entry */}
-          <View style={styles.newEpisodeSection}>
-            <Text style={styles.setupLabel}>New Episode</Text>
-            <TextInput
-              style={styles.episodeInput}
-              value={episodeNumber}
-              onChangeText={setEpisodeNumber}
-              keyboardType="number-pad"
-              placeholder="Episode number"
-              placeholderTextColor={colors.textMuted}
-            />
+          {/* Draft episode — tappable to resume */}
+          {draftEpisode && (
+            <TouchableOpacity
+              style={styles.draftCard}
+              onPress={() => resumeEpisode(draftEpisode)}
+            >
+              <View style={styles.pastEpisodeInfo}>
+                <Text style={styles.pastEpisodeNumber}>Episode {draftEpisode.episode_number}</Text>
+                <Text style={styles.draftLabel}>Draft — tap to continue</Text>
+              </View>
+              <View style={[styles.statusDot, styles.statusDraft]} />
+            </TouchableOpacity>
+          )}
+
+          {/* Start next episode button */}
+          {canStartNew && (
             <TouchableOpacity
               style={styles.startButton}
-              onPress={createEpisode}
+              onPress={() => startEpisode(nextEpisodeNumber)}
               disabled={isCreating}
             >
               {isCreating ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.startButtonText}>Start Logging Episode {episodeNumber || '?'}</Text>
+                <Text style={styles.startButtonText}>Log Episode {nextEpisodeNumber}</Text>
               )}
             </TouchableOpacity>
-          </View>
+          )}
         </ScrollView>
       </View>
     );
@@ -359,12 +485,41 @@ export default function EpisodeScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.pageTitle}>Episode {episodeNumber}</Text>
+        {/* Episode header with type flags */}
+        <View style={styles.episodeHeader}>
+          <TouchableOpacity
+            style={styles.episodeTitleRow}
+            onPress={() => setShowEpisodeOptions((v) => !v)}
+          >
+            <Text style={styles.pageTitle}>
+              Episode {episodeNumber}
+              {isMerge ? '  ·  Merge' : ''}
+              {isFinale ? '  ·  Finale' : ''}
+            </Text>
+            <Text style={styles.chevron}>{showEpisodeOptions ? '▾' : '▸'}</Text>
+          </TouchableOpacity>
+          {showEpisodeOptions && (
+            <View style={styles.episodeFlags}>
+              <TouchableOpacity
+                style={[styles.flagChip, isMerge && styles.flagChipActive]}
+                onPress={() => setIsMerge((v) => !v)}
+              >
+                <Text style={[styles.flagChipText, isMerge && styles.flagChipTextActive]}>Merge</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.flagChip, isFinale && styles.flagChipActive]}
+                onPress={() => setIsFinale((v) => !v)}
+              >
+                <Text style={[styles.flagChipText, isFinale && styles.flagChipTextActive]}>Finale</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
-        {/* 1. Voted Off */}
+        {/* 1. Voted Off & Quit */}
         <CategoryCard
-          title="Voted Off"
-          question="Who was voted off this episode?"
+          title="Voted Off & Quit"
+          question="Who left the game this episode?"
           count={votedOff.size}
           expanded={expandedCards.has('votedOff')}
           onToggle={() => toggleCard('votedOff')}
@@ -375,57 +530,35 @@ export default function EpisodeScreen() {
             selected={votedOff}
             onToggle={(id) => toggleInSet(setVotedOff, id)}
           />
-        </CategoryCard>
-
-        {/* 2. Vote Details — only if someone was voted off */}
-        {votedOff.size > 0 && (
-          <CategoryCard
-            title="Vote Details"
-            question="Any special circumstances for the vote?"
-            count={Object.values(votedOffDetails).reduce((sum, s) => sum + s.size, 0)}
-            expanded={expandedCards.has('voteDetails')}
-            onToggle={() => toggleCard('voteDetails')}
-          >
-            {Array.from(votedOff).map((id) => (
-              <View key={id} style={styles.detailSection}>
-                <Text style={styles.detailName}>{castawayMap[id]?.name}</Text>
-                <View style={styles.detailChips}>
-                  {[
-                    { key: 'unanimous', label: 'Unanimous' },
-                    { key: 'idol', label: 'Had Idol' },
-                    { key: 'advantage', label: 'Had Advantage' },
-                  ].map(({ key, label }) => {
-                    const active = votedOffDetails[id]?.has(key);
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => toggleVotedOffDetail(id, key)}
-                      >
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+          {votedOff.size > 0 && (
+            <View style={styles.subDetails}>
+              {Array.from(votedOff).map((id) => (
+                <View key={id} style={styles.detailRow}>
+                  <Text style={styles.detailName}>{castawayMap[id]?.name}</Text>
+                  <View style={styles.detailChips}>
+                    {[
+                      { key: 'quit', label: 'Quit' },
+                      { key: 'unanimous', label: 'Unanimous' },
+                      { key: 'idol', label: 'Had Idol' },
+                      { key: 'advantage', label: 'Had Advantage' },
+                      ...(episodeNum === 1 ? [{ key: 'first_boot', label: 'First Boot' }] : []),
+                    ].map(({ key, label }) => {
+                      const active = votedOffDetails[id]?.has(key);
+                      return (
+                        <TouchableOpacity
+                          key={key}
+                          style={[styles.detailChip, active && styles.detailChipActive]}
+                          onPress={() => toggleVotedOffDetail(id, key)}
+                        >
+                          <Text style={[styles.detailChipText, active && styles.detailChipTextActive]}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
-              </View>
-            ))}
-          </CategoryCard>
-        )}
-
-        {/* 3. Quit */}
-        <CategoryCard
-          title="Quit"
-          question="Did anyone quit this episode?"
-          count={quitPlayers.size}
-          expanded={expandedCards.has('quit')}
-          onToggle={() => toggleCard('quit')}
-        >
-          <CastawayChipGrid
-            castaways={activeCastaways}
-            byTribe={byTribe}
-            selected={quitPlayers}
-            onToggle={(id) => toggleInSet(setQuitPlayers, id)}
-          />
+              ))}
+            </View>
+          )}
         </CategoryCard>
 
         {/* 4. Individual Immunity */}
@@ -437,7 +570,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('immunity')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={immunityWinners}
             onToggle={(id) => toggleInSet(setImmunityWinners, id)}
@@ -453,7 +586,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('reward')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={rewardWinners}
             onToggle={(id) => toggleInSet(setRewardWinners, id)}
@@ -469,7 +602,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('idolFound')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={idolsFound}
             onToggle={(id) => toggleInSet(setIdolsFound, id)}
@@ -485,7 +618,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('advantageFound')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={advantagesFound}
             onToggle={(id) => toggleInSet(setAdvantagesFound, id)}
@@ -501,7 +634,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('idolPlay')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={new Set(Object.keys(idolPlays).map(Number))}
             onToggle={toggleIdolPlay}
@@ -534,7 +667,7 @@ export default function EpisodeScreen() {
           onToggle={() => toggleCard('shotInDark')}
         >
           <CastawayChipGrid
-            castaways={activeCastaways}
+            castaways={remainingCastaways}
             byTribe={byTribe}
             selected={new Set(Object.keys(shotInDark).map(Number))}
             onToggle={toggleShotInDark}
@@ -558,29 +691,49 @@ export default function EpisodeScreen() {
           )}
         </CategoryCard>
 
-        {/* 10. Milestones */}
-        <CategoryCard
-          title="Milestones"
-          question="Any milestones this episode?"
-          count={Object.values(milestones).reduce((sum, s) => sum + s.size, 0)}
-          expanded={expandedCards.has('milestones')}
-          onToggle={() => toggleCard('milestones')}
-        >
-          {MILESTONE_EVENTS.map((event) => {
-            const selectedIds = milestones[event] ?? new Set<number>();
-            return (
-              <View key={event} style={styles.milestoneBlock}>
-                <Text style={styles.milestoneLabel}>{EVENT_LABELS[event] ?? event}</Text>
-                <CastawayChipGrid
-                  castaways={activeCastaways}
-                  byTribe={byTribe}
-                  selected={selectedIds}
-                  onToggle={(id) => toggleMilestone(event, id)}
-                />
-              </View>
-            );
-          })}
-        </CategoryCard>
+        {/* 10. Made Jury — merge episode only */}
+        {isMerge && (
+          <CategoryCard
+            title="Made Jury"
+            question="Who made the jury?"
+            count={(milestones['made_jury'] ?? new Set()).size}
+            expanded={expandedCards.has('madeJury')}
+            onToggle={() => toggleCard('madeJury')}
+          >
+            <CastawayChipGrid
+              castaways={remainingCastaways}
+              byTribe={byTribe}
+              selected={milestones['made_jury'] ?? new Set<number>()}
+              onToggle={(id) => toggleMilestone('made_jury', id)}
+            />
+          </CategoryCard>
+        )}
+
+        {/* 11. Finale Milestones — finale episode only */}
+        {isFinale && (
+          <CategoryCard
+            title="Finale Milestones"
+            question="Finale results"
+            count={FINALE_MILESTONES.reduce((sum, e) => sum + (milestones[e]?.size ?? 0), 0)}
+            expanded={expandedCards.has('milestones')}
+            onToggle={() => toggleCard('milestones')}
+          >
+            {FINALE_MILESTONES.map((event) => {
+              const selectedIds = milestones[event] ?? new Set<number>();
+              return (
+                <View key={event} style={styles.milestoneBlock}>
+                  <Text style={styles.milestoneLabel}>{EVENT_LABELS[event] ?? event}</Text>
+                  <CastawayChipGrid
+                    castaways={remainingCastaways}
+                    byTribe={byTribe}
+                    selected={selectedIds}
+                    onToggle={(id) => toggleMilestone(event, id)}
+                  />
+                </View>
+              );
+            })}
+          </CategoryCard>
+        )}
 
         {/* Review Summary */}
         <View style={styles.summaryCard}>
@@ -727,8 +880,6 @@ const styles = StyleSheet.create({
 
   // Episode setup
   episodeSetup: { padding: 24, gap: 20 },
-  setupLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-  newEpisodeSection: { gap: 10 },
 
   // Past episodes list
   pastEpisodesSection: { gap: 8 },
@@ -743,16 +894,28 @@ const styles = StyleSheet.create({
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusFinalized: { backgroundColor: colors.success },
   statusDraft: { backgroundColor: colors.warning },
-  episodeInput: {
-    backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: 16, paddingVertical: 14, color: colors.textPrimary, fontSize: 20, fontWeight: '700', textAlign: 'center',
+  draftCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: colors.warning,
   },
-  startButton: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  draftLabel: { color: colors.warning, fontSize: 12, fontWeight: '600' },
+  startButton: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   startButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   // Main content
   content: { padding: 16, gap: 12, paddingBottom: 100 },
-  pageTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  episodeHeader: { gap: 8, marginBottom: 4 },
+  episodeTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pageTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '700', flex: 1 },
+  episodeFlags: { flexDirection: 'row', gap: 8 },
+  flagChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  flagChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  flagChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  flagChipTextActive: { color: '#fff' },
 
   // Category cards
   card: { backgroundColor: colors.surface, borderRadius: 10, overflow: 'hidden' },
@@ -785,11 +948,17 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#fff', fontWeight: '600' },
 
   // Detail sections (vote details)
-  detailSection: { gap: 6, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border + '60' },
-  detailChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   detailName: { color: colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  subDetails: { gap: 4, marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '60', paddingTop: 8 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  detailChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  subDetails: { gap: 8, marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '60', paddingTop: 8 },
+  detailRow: { gap: 6, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: colors.border + '30' },
+  detailChip: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
+    backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
+  },
+  detailChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  detailChipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '500' },
+  detailChipTextActive: { color: '#fff', fontWeight: '600' },
 
   // Result toggles (idol correct/incorrect, shot safe/not safe)
   resultToggle: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },

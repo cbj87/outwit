@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCastawayMap } from '@/hooks/useCastaways';
@@ -9,6 +9,7 @@ import type { Picks, ProphecyAnswer, ScoreCache, ScoreCacheTrioDetail, Profile, 
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const castawayMap = useCastawayMap();
 
   const { data, isLoading } = useQuery({
@@ -95,6 +96,7 @@ export default function PlayerDetailScreen() {
             tribe={castaway?.tribe}
             points={points}
             isActive={castaway?.is_active ?? true}
+            onPress={() => router.push(`/castaways/${castawayId}`)}
           />
         );
       })}
@@ -110,6 +112,7 @@ export default function PlayerDetailScreen() {
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
+            onPress={() => router.push(`/castaways/${picks.icky_castaway}`)}
           />
         );
       })()}
@@ -147,17 +150,17 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky }: { name: string; tribe?: Tribe; points: number; isActive: boolean; isIcky?: boolean }) {
+function CastawayRow({ name, tribe, points, isActive, isIcky, onPress }: { name: string; tribe?: Tribe; points: number; isActive: boolean; isIcky?: boolean; onPress?: () => void }) {
   const tribeColor = tribe ? tribeColors[tribe] : colors.textMuted;
   return (
-    <View style={[styles.castawayRow, { borderLeftColor: tribeColor }]}>
+    <TouchableOpacity style={[styles.castawayRow, { borderLeftColor: tribeColor }]} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
       <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
       {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
       <Text style={[styles.castawayPoints, points < 0 && styles.negative, points > 0 && styles.positive]}>
         {points > 0 ? `+${points}` : points}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 

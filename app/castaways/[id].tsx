@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { EVENT_LABELS, EVENT_SCORES } from '@/lib/constants';
+import { EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
 import type { Castaway, CastawayEvent } from '@/types';
 
@@ -56,16 +56,16 @@ export default function CastawayDetailScreen() {
         <Text style={styles.noEvents}>No events logged yet.</Text>
       ) : (
         events.map((event) => {
-          const pts = EVENT_SCORES[event.event_type];
+          const pts = event.event_type === 'survived_episode'
+            ? getSurvivalPoints(event.episodes?.episode_number ?? 0)
+            : EVENT_SCORES[event.event_type];
           return (
             <View key={event.id} style={styles.eventRow}>
               <Text style={styles.eventEpisode}>Ep {event.episodes?.episode_number ?? '?'}</Text>
               <Text style={styles.eventLabel}>{EVENT_LABELS[event.event_type] ?? event.event_type}</Text>
-              {event.event_type !== 'survived_episode' && (
-                <Text style={[styles.eventPoints, pts < 0 && styles.negative, pts > 0 && styles.positive]}>
-                  {pts > 0 ? `+${pts}` : pts}
-                </Text>
-              )}
+              <Text style={[styles.eventPoints, pts < 0 && styles.negative, pts > 0 && styles.positive]}>
+                {pts > 0 ? `+${pts}` : pts}
+              </Text>
             </View>
           );
         })
