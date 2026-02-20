@@ -1,9 +1,12 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { useIsCommissioner } from '@/hooks/useIsCommissioner';
 import { useAuth } from '@/hooks/useAuth';
+import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
@@ -29,16 +32,49 @@ interface AdminCard {
 const ADMIN_CARDS: AdminCard[] = [
   { title: 'Log Episode', description: 'Record castaway events and finalize episode scores', route: '/admin/episode', emoji: '📺' },
   { title: 'Prophecy Outcomes', description: 'Set true/false outcomes for the 16 season predictions', route: '/admin/prophecy', emoji: '🔮' },
-  { title: 'Reveal Picks', description: 'Reveal all players\' picks to the group', route: '/admin/reveal', emoji: '🎭' },
 ];
 
 export default function AdminScreen() {
   const isCommissioner = useIsCommissioner();
   const { signOut } = useAuth();
+  const { config, refetch } = useSeasonConfig();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!isCommissioner) return null;
+
+  const isRevealed = config?.picks_revealed ?? false;
+
+  function handleRevealToggle() {
+    const newValue = !isRevealed;
+    Alert.alert(
+      newValue ? 'Reveal Picks?' : 'Hide Picks?',
+      newValue
+        ? 'This will show everyone\'s picks to all players.'
+        : 'This will hide everyone\'s picks again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: newValue ? 'Reveal Now' : 'Hide',
+          style: newValue ? 'destructive' : 'default',
+          onPress: async () => {
+            setIsSaving(true);
+            const { error } = await supabase
+              .from('season_config')
+              .update({ picks_revealed: newValue })
+              .eq('id', 1);
+            setIsSaving(false);
+            if (error) {
+              Alert.alert('Error', error.message);
+            } else {
+              refetch();
+            }
+          },
+        },
+      ],
+    );
+  }
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={styles.content}>
@@ -60,6 +96,25 @@ export default function AdminScreen() {
         </TouchableOpacity>
       ))}
 
+      <Glass style={styles.revealRow}>
+        <View style={styles.revealInfo}>
+          <Text style={styles.revealTitle}>Reveal Picks</Text>
+          <Text style={styles.revealDescription}>
+            {isRevealed ? 'All players can see everyone\'s picks' : 'Picks are hidden from other players'}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.revealButton, isRevealed && styles.revealButtonActive]}
+          onPress={handleRevealToggle}
+          disabled={isSaving}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.revealButtonText, isRevealed && styles.revealButtonTextActive]}>
+            {isRevealed ? 'Revealed' : 'Hidden'}
+          </Text>
+        </TouchableOpacity>
+      </Glass>
+
       <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -79,6 +134,14 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   cardDescription: { color: colors.textSecondary, fontSize: 13 },
   cardChevron: { color: colors.textMuted, fontSize: 22 },
+  revealRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16, gap: 14, overflow: 'hidden' },
+  revealInfo: { flex: 1, gap: 4 },
+  revealTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  revealDescription: { color: colors.textSecondary, fontSize: 13 },
+  revealButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.border },
+  revealButtonActive: { backgroundColor: colors.success + '22' },
+  revealButtonText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  revealButtonTextActive: { color: colors.success },
   signOutButton: { marginTop: 24, paddingVertical: 14, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: 12, alignItems: 'center' },
   signOutText: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
 });

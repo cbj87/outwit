@@ -6,6 +6,17 @@ export function useSeasonConfig() {
   const [config, setConfig] = useState<SeasonConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  function refetch() {
+    supabase
+      .from('season_config')
+      .select('*')
+      .eq('id', 1)
+      .single()
+      .then(({ data }) => {
+        if (data) setConfig(data as SeasonConfig);
+      });
+  }
+
   useEffect(() => {
     // Initial fetch
     supabase
@@ -39,5 +50,5 @@ export function useSeasonConfig() {
     ? config.picks_revealed || new Date() > new Date(config.picks_deadline)
     : false;
 
-  return { config, isLoading, isPicksLocked };
+  return { config, isLoading, isPicksLocked, refetch };
 }
