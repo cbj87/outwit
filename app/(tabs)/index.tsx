@@ -60,18 +60,38 @@ function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () =
   );
 }
 
-function ListHeader({ config, insets }: { config: any; insets: any }) {
+function ListHeader({ config, insets, router }: { config: any; insets: any; router: any }) {
+  const hasEpisodes = (config?.current_episode ?? 0) >= 1;
+
   return (
     <View style={{ paddingTop: insets.top + 8, backgroundColor: colors.background }}>
       <Text style={styles.screenTitle}>Leaderboard</Text>
-      <Glass style={styles.episodeBanner} tintColor={colors.primary + '18'}>
+      <Glass style={styles.episodeBanner}>
         <Text style={styles.episodeLabel}>
-          {config?.current_episode ? `Episode ${config.current_episode}` : 'Pre-Season'}
+          {config?.current_episode ? `Standings Thru Episode ${config.current_episode}` : 'Pre-Season'}
         </Text>
         {!config?.picks_revealed && (
           <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
         )}
       </Glass>
+      <View style={styles.quickLinks}>
+        {hasEpisodes && (
+          <TouchableOpacity
+            style={styles.quickLinkPill}
+            activeOpacity={0.7}
+            onPress={() => router.push('/episodes/')}
+          >
+            <Text style={styles.quickLinkText}>Episode Recaps</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={styles.quickLinkPill}
+          activeOpacity={0.7}
+          onPress={() => router.push('/prophecy/status')}
+        >
+          <Text style={styles.quickLinkText}>Prophecy Picks</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -103,7 +123,7 @@ export default function LeaderboardScreen() {
       <FlatList
         data={entries}
         keyExtractor={(item) => item.player_id}
-        ListHeaderComponent={<ListHeader config={config} insets={insets} />}
+        ListHeaderComponent={<ListHeader config={config} insets={insets} router={router} />}
         renderItem={({ item }) => (
           <LeaderboardRow
             entry={item}
@@ -140,6 +160,25 @@ const styles = StyleSheet.create({
   },
   episodeLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   hiddenNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
+  quickLinks: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  quickLinkPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  quickLinkText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   list: { paddingBottom: 16 },
   row: {
     flexDirection: 'row',
