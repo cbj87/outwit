@@ -91,6 +91,13 @@ function ListHeader({ config, insets, router }: { config: any; insets: any; rout
         >
           <Text style={styles.quickLinkText}>Prophecy Picks</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.quickLinkPill}
+          activeOpacity={0.7}
+          onPress={() => router.push('/scoring-rules')}
+        >
+          <Text style={styles.quickLinkText}>Scoring</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

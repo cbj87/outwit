@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useIsCommissioner } from '@/hooks/useIsCommissioner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import * as ImagePicker from 'expo-image-picker';
 import { colors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
@@ -51,6 +52,7 @@ export default function ProfileScreen() {
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Keep input in sync when profile loads or updates externally
   useEffect(() => {
@@ -62,29 +64,34 @@ export default function ProfileScreen() {
 
   const hasNameChanged = displayName.trim() !== (profile?.display_name ?? '');
 
-  async function handleSaveDisplayName() {
+  async function handleSave() {
     const trimmed = displayName.trim();
     if (!trimmed || !profile) return;
 
-    setIsSavingName(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ display_name: trimmed, updated_at: new Date().toISOString() })
-      .eq('id', profile.id);
-    setIsSavingName(false);
+    if (hasNameChanged) {
+      setIsSavingName(true);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: trimmed, updated_at: new Date().toISOString() })
+        .eq('id', profile.id);
+      setIsSavingName(false);
 
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
       await refreshProfile();
     }
+    setIsEditing(false);
+  }
+
+  function handleCancelEdit() {
+    setDisplayName(profile?.display_name ?? '');
+    setIsEditing(false);
   }
 
   async function handlePickAvatar() {
     if (!profile) return;
-
-    // Lazy-import to avoid crash when native module isn't built yet
-    const ImagePicker = await import('expo-image-picker');
 
     const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permResult.granted) {
@@ -162,11 +169,38 @@ export default function ProfileScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
+        {isEditing ? (
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleCancelEdit} activeOpacity={0.7}>
+              <Text style={styles.headerCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerSaveButton}
+              onPress={handleSave}
+              disabled={isSavingName}
+              activeOpacity={0.7}
+            >
+              {isSavingName ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.headerSaveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setIsEditing(true)} activeOpacity={0.7}>
+            <Text style={styles.headerEditText}>Edit</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Avatar */}
       <View style={styles.avatarSection}>
-        <TouchableOpacity onPress={handlePickAvatar} disabled={isUploadingAvatar} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={handlePickAvatar}
+          disabled={!isEditing || isUploadingAvatar}
+          activeOpacity={isEditing ? 0.7 : 1}
+        >
           <View style={styles.avatarContainer}>
             {profile?.avatar_url ? (
               <Image source={{ uri: profile.avatar_url }} style={styles.avatar} contentFit="cover" />
@@ -180,18 +214,21 @@ export default function ProfileScreen() {
                 <ActivityIndicator color="#fff" />
               </View>
             )}
-            <View style={styles.avatarBadge}>
-              <Text style={styles.avatarBadgeText}>Edit</Text>
-            </View>
+            {isEditing && (
+              <View style={styles.avatarBadge}>
+                <Text style={styles.avatarBadgeText}>Edit</Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
+        <Text style={styles.displayNameText}>{profile?.display_name ?? 'Not set'}</Text>
         <Text style={styles.emailText}>{profile?.email}</Text>
       </View>
 
       {/* Display Name */}
-      <Glass style={styles.fieldCard}>
-        <Text style={styles.fieldLabel}>Display Name</Text>
-        <View style={styles.nameRow}>
+      {isEditing && (
+        <Glass style={styles.fieldCard}>
+          <Text style={styles.fieldLabel}>Display Name</Text>
           <TextInput
             style={styles.nameInput}
             value={displayName}
@@ -201,24 +238,10 @@ export default function ProfileScreen() {
             autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="done"
-            onSubmitEditing={hasNameChanged ? handleSaveDisplayName : undefined}
+            onSubmitEditing={hasNameChanged ? handleSave : undefined}
           />
-          {hasNameChanged && (
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveDisplayName}
-              disabled={isSavingName}
-              activeOpacity={0.7}
-            >
-              {isSavingName ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </Glass>
+        </Glass>
+      )}
 
       {/* Commissioner Panel Link */}
       {isCommissioner && (
@@ -250,8 +273,20 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 16 },
-  header: { paddingVertical: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 },
   headerTitle: { color: colors.primary, fontSize: 22, fontWeight: '800' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerEditText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+  headerCancelText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  headerSaveButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 10,
+    minWidth: 56,
+    alignItems: 'center',
+  },
+  headerSaveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   // Avatar
   avatarSection: { alignItems: 'center', gap: 8, marginBottom: 8 },
@@ -280,6 +315,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   avatarBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  displayNameText: { color: colors.textPrimary, fontSize: 22, fontWeight: '800', textAlign: 'center' },
   emailText: { color: colors.textSecondary, fontSize: 14 },
 
   // Display Name
@@ -296,9 +332,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   nameInput: {
-    flex: 1,
     fontSize: 17,
     color: colors.textPrimary,
     paddingVertical: 8,
@@ -306,15 +340,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: 10,
   },
-  saveButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  saveButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   // Commissioner
   commissionerCard: {

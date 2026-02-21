@@ -45,6 +45,7 @@ function AuthGate() {
       <Stack.Screen name="prophecy/status" options={{ presentation: 'card', headerShown: true, title: 'Prophecy Status', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
       <Stack.Screen name="episodes/index" options={{ presentation: 'card', headerShown: true, title: 'Episode Recaps', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
       <Stack.Screen name="episodes/[id]" options={{ presentation: 'card', headerShown: true, title: '', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
+      <Stack.Screen name="scoring-rules" options={{ presentation: 'card', headerShown: true, title: 'Scoring Rules', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
     </Stack>
   );
 }
