@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -63,10 +64,24 @@ export default function PlayerDetailScreen() {
   const prophecyPoints = scores?.prophecy_points ?? 0;
   const totalPoints = scores?.total_points ?? 0;
 
+  const initials = (profile.display_name ?? '?')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Player header */}
       <View style={styles.header}>
+        {profile.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={styles.headerAvatar} contentFit="cover" />
+        ) : (
+          <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+            <Text style={styles.headerInitials}>{initials}</Text>
+          </View>
+        )}
         <Text style={styles.playerName}>{profile.display_name}</Text>
         <Text style={styles.totalScore}>{totalPoints} pts</Text>
       </View>
@@ -189,7 +204,10 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   emptyText: { color: colors.textMuted, fontSize: 16 },
   header: { alignItems: 'center', paddingVertical: 20, gap: 4 },
-  playerName: { color: colors.textPrimary, fontSize: 28, fontWeight: '800' },
+  headerAvatar: { width: 64, height: 64, borderRadius: 32 },
+  headerAvatarPlaceholder: { backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  headerInitials: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  playerName: { color: colors.textPrimary, fontSize: 28, fontWeight: '800', marginTop: 4 },
   totalScore: { color: colors.primary, fontSize: 18, fontWeight: '700' },
   scoreSummary: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   scorePill: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, alignItems: 'center' },

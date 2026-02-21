@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMyPicks } from '@/hooks/useMyPicks';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useAuth } from '@/hooks/useAuth';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { colors } from '@/theme/colors';
@@ -23,10 +25,18 @@ function Glass({ style, children, tintColor, isInteractive }: { style?: any; chi
 
 export default function MyPicksScreen() {
   const router = useRouter();
+  const { profile } = useAuth();
   const { data, isLoading } = useMyPicks();
   const { config, isPicksLocked } = useSeasonConfig();
   const castawayMap = useCastawayMap();
   const insets = useSafeAreaInsets();
+
+  const initials = (profile?.display_name ?? '?')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   if (isLoading) {
     return (
@@ -72,6 +82,19 @@ export default function MyPicksScreen() {
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
+      {/* Player header */}
+      <View style={styles.header}>
+        {profile?.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={styles.headerAvatar} contentFit="cover" />
+        ) : (
+          <View style={[styles.headerAvatar, styles.headerAvatarPlaceholder]}>
+            <Text style={styles.headerInitials}>{initials}</Text>
+          </View>
+        )}
+        <Text style={styles.headerName}>{profile?.display_name ?? ''}</Text>
+        <Text style={styles.headerScore}>{totalPoints} pts</Text>
+      </View>
+
       {/* Score summary */}
       <View style={styles.scoreSummary}>
         <Glass style={styles.scorePill}>
@@ -85,10 +108,6 @@ export default function MyPicksScreen() {
         <Glass style={styles.scorePill}>
           <Text style={styles.pillValue}>{prophecyPoints}</Text>
           <Text style={styles.pillLabel}>Prophecy</Text>
-        </Glass>
-        <Glass style={styles.totalPill} tintColor={colors.primary + '30'}>
-          <Text style={styles.totalValue}>{totalPoints}</Text>
-          <Text style={styles.totalLabel}>TOTAL</Text>
         </Glass>
       </View>
 
@@ -193,13 +212,16 @@ const styles = StyleSheet.create({
   emptySubtitle: { color: colors.textSecondary, fontSize: 14 },
   ctaButton: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32, marginTop: 8 },
   ctaButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
-  scoreSummary: { flexDirection: 'row', padding: 16, gap: 8, backgroundColor: colors.background },
+  header: { alignItems: 'center', paddingTop: 12, paddingBottom: 4, gap: 4 },
+  headerAvatar: { width: 64, height: 64, borderRadius: 32 },
+  headerAvatarPlaceholder: { backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  headerInitials: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  headerName: { color: colors.textPrimary, fontSize: 28, fontWeight: '800', marginTop: 4 },
+  headerScore: { color: colors.primary, fontSize: 18, fontWeight: '700' },
+  scoreSummary: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   scorePill: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', overflow: 'hidden' },
   pillValue: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
   pillLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginTop: 2 },
-  totalPill: { borderRadius: 14, padding: 12, alignItems: 'center', minWidth: 64, overflow: 'hidden' },
-  totalValue: { color: colors.primary, fontSize: 22, fontWeight: '900' },
-  totalLabel: { color: colors.primary, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   editButton: { marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   editButtonText: { color: colors.textSecondary, fontSize: 14, fontWeight: '600' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
