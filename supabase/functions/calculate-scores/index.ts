@@ -61,26 +61,46 @@ Deno.serve(async (req) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  // Verify caller is authenticated commissioner
+  // Verify caller is authenticated commissioner (or service role for dashboard/CLI invocation)
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_commissioner')
-    .eq('id', user.id)
-    .single();
+  // Check if this is the service role key (try multiple env var names)
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    ?? Deno.env.get('SERVICE_ROLE_KEY');
+  const isServiceRole = serviceRoleKey && token === serviceRoleKey;
 
-  if (!profile?.is_commissioner) {
-    return new Response('Forbidden', { status: 403 });
+  if (!isServiceRole) {
+    // Try to authenticate as a user
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      // If user auth fails, check if the token can query profiles (service role can)
+      const { count, error: probeError } = await createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        token,
+      ).from('profiles').select('*', { count: 'exact', head: true });
+
+      if (probeError || count === null) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      // Service role key can query — allow through
+    } else {
+      // Verify user is commissioner
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_commissioner')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.is_commissioner) {
+        return new Response('Forbidden', { status: 403 });
+      }
+    }
   }
 
   // Parse request
@@ -100,9 +120,9 @@ Deno.serve(async (req) => {
       supabase.from('picks').select('*'),
       supabase.from('prophecy_answers').select('*'),
       supabase.from('castaway_events').select('*, episodes(episode_number)'),
-      supabase.from('episodes').select('id, episode_number').eq('is_finalized', true),
+      supabase.from('episodes').select('id, episode_number, is_merge').eq('is_finalized', true),
       supabase.from('prophecy_outcomes').select('*'),
-      supabase.from('castaways').select('id, final_placement'),
+      supabase.from('castaways').select('id, final_placement, is_active'),
     ]);
 
     const picks = picksResult.data ?? [];
@@ -113,12 +133,50 @@ Deno.serve(async (req) => {
 
     // Build episode number map (episode_id → episode_number)
     const episodeNumberMap = new Map<number, number>();
+    const mergeEpisodeNumbers = new Set<number>();
     (episodesResult.data ?? []).forEach((ep: any) => {
       episodeNumberMap.set(ep.id, ep.episode_number);
+      if (ep.is_merge) mergeEpisodeNumbers.add(ep.episode_number);
     });
 
+    // Determine merge episode number (earliest merge episode)
+    const mergeEpisode = mergeEpisodeNumbers.size > 0 ? Math.min(...mergeEpisodeNumbers) : Infinity;
+
     const castawayPlacementMap = new Map<number, string | null>();
-    castaways.forEach((c: any) => castawayPlacementMap.set(c.id, c.final_placement));
+    const placementFixes: { id: number; final_placement: string }[] = [];
+    castaways.forEach((c: any) => {
+      let placement = c.final_placement;
+      // Fallback: if castaway is eliminated but final_placement wasn't set, infer it
+      if (!placement && !c.is_active) {
+        const castawayEvents = allEvents.filter((e: any) => e.castaway_id === c.id);
+        const hasFirstBoot = castawayEvents.some((e: any) => e.event_type === 'first_boot');
+        const hasSoleSurvivor = castawayEvents.some((e: any) => e.event_type === 'sole_survivor');
+        const hasRunnerUp = castawayEvents.some((e: any) => e.event_type === 'placed_runner_up');
+        const has3rd = castawayEvents.some((e: any) => e.event_type === 'placed_3rd');
+
+        if (hasSoleSurvivor) placement = 'winner';
+        else if (hasRunnerUp) placement = 'runner_up';
+        else if (has3rd) placement = '3rd';
+        else if (hasFirstBoot) placement = 'first_boot';
+        else {
+          // Determine based on when they were eliminated relative to merge
+          const lastEpisode = castawayEvents
+            .map((e: any) => e.episodes?.episode_number ?? 0)
+            .reduce((max: number, n: number) => Math.max(max, n), 0);
+          placement = lastEpisode < mergeEpisode ? 'pre_merge' : 'jury';
+        }
+        placementFixes.push({ id: c.id, final_placement: placement });
+      }
+      castawayPlacementMap.set(c.id, placement);
+    });
+
+    // Persist any inferred placements back to the DB
+    for (const fix of placementFixes) {
+      await supabase
+        .from('castaways')
+        .update({ final_placement: fix.final_placement })
+        .eq('id', fix.id);
+    }
 
     // Calculate scores for each player
     const scoreCache: any[] = [];

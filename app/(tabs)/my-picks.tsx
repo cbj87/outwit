@@ -64,9 +64,10 @@ export default function MyPicksScreen() {
     );
   }
 
-  const { picks, prophecyAnswers, trioDetail, trioPoints, ickyPoints, prophecyPoints, totalPoints } = data;
+  const { picks, prophecyAnswers, prophecyOutcomes, trioDetail, trioPoints, ickyPoints, prophecyPoints, totalPoints } = data;
   const trio = [picks.trio_castaway_1, picks.trio_castaway_2, picks.trio_castaway_3];
   const answersMap = new Map(prophecyAnswers.map((a) => [a.question_id, a.answer]));
+  const outcomesMap = new Map(prophecyOutcomes.map((o) => [o.question_id, o.outcome]));
   const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
 
   return (
@@ -129,14 +130,30 @@ export default function MyPicksScreen() {
       <SectionHeader title="Prophecy Picks" points={prophecyPoints} />
       {PROPHECY_QUESTIONS.map((q) => {
         const answer = answersMap.get(q.id);
+        const outcome = outcomesMap.get(q.id);
+        const isResolved = outcome !== null && outcome !== undefined;
+        const isCorrect = isResolved && answer === outcome;
         return (
-          <Glass key={q.id} style={styles.prophecyRow}>
-            <Text style={styles.prophecyText}>{q.text}</Text>
+          <Glass key={q.id} style={[styles.prophecyRow, isResolved && (isCorrect ? styles.prophecyRowCorrect : styles.prophecyRowWrong)]}>
+            <View style={styles.prophecyLeft}>
+              <Text style={[styles.prophecyText, isResolved && !isCorrect && styles.prophecyTextWrong]}>{q.text}</Text>
+              {isResolved && (
+                <Text style={[styles.prophecyResult, isCorrect ? styles.prophecyResultCorrect : styles.prophecyResultWrong]}>
+                  {isCorrect ? `+${q.points}pt` : '+0pt'}
+                </Text>
+              )}
+            </View>
             <View style={styles.prophecyRight}>
               <Text style={[styles.prophecyAnswer, answer ? styles.answerYes : styles.answerNo]}>
                 {answer ? 'YES' : 'NO'}
               </Text>
-              <Text style={styles.prophecyPoints}>+{q.points}pt</Text>
+              {isResolved ? (
+                <Text style={isCorrect ? styles.prophecyCorrectIcon : styles.prophecyWrongIcon}>
+                  {isCorrect ? '\u2713' : '\u2717'}
+                </Text>
+              ) : (
+                <Text style={styles.prophecyPending}>{q.points}pt</Text>
+              )}
             </View>
           </Glass>
         );
@@ -196,10 +213,19 @@ const styles = StyleSheet.create({
   castawayPoints: { color: colors.scorePositive, fontSize: 14, fontWeight: '700' },
   negative: { color: colors.scoreNegative },
   prophecyRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, marginHorizontal: 16, marginBottom: 2, borderRadius: 14, gap: 8, overflow: 'hidden' },
-  prophecyText: { flex: 1, color: colors.textPrimary, fontSize: 13 },
+  prophecyRowCorrect: { backgroundColor: colors.success + '10' },
+  prophecyRowWrong: { backgroundColor: colors.error + '08' },
+  prophecyLeft: { flex: 1, gap: 2 },
+  prophecyText: { color: colors.textPrimary, fontSize: 13 },
+  prophecyTextWrong: { color: colors.textSecondary },
+  prophecyResult: { fontSize: 11, fontWeight: '700' },
+  prophecyResultCorrect: { color: colors.success },
+  prophecyResultWrong: { color: colors.textMuted },
   prophecyRight: { alignItems: 'flex-end', gap: 2 },
   prophecyAnswer: { fontSize: 12, fontWeight: '800' },
   answerYes: { color: colors.success },
   answerNo: { color: colors.error },
-  prophecyPoints: { color: colors.textMuted, fontSize: 10 },
+  prophecyCorrectIcon: { color: colors.success, fontSize: 14, fontWeight: '900' },
+  prophecyWrongIcon: { color: colors.error, fontSize: 14, fontWeight: '900' },
+  prophecyPending: { color: colors.textMuted, fontSize: 10 },
 });

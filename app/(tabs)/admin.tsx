@@ -41,6 +41,7 @@ export default function AdminScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isSaving, setIsSaving] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   if (!isCommissioner) return null;
 
@@ -115,6 +116,43 @@ export default function AdminScreen() {
         </TouchableOpacity>
       </Glass>
 
+      <TouchableOpacity
+        style={[styles.recalcButton, isRecalculating && styles.recalcButtonDisabled]}
+        onPress={async () => {
+          setIsRecalculating(true);
+          try {
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) throw new Error('Session expired — please sign in again.');
+            const accessToken = refreshData.session.access_token;
+            const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/calculate-scores`;
+            const res = await fetch(fnUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+              },
+              body: JSON.stringify({ episode_id: null }),
+            });
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(`${res.status}: ${text}`);
+            }
+            Alert.alert('Done', 'All scores have been recalculated.');
+          } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Failed to recalculate scores.');
+          } finally {
+            setIsRecalculating(false);
+          }
+        }}
+        disabled={isRecalculating}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.recalcButtonText}>
+          {isRecalculating ? 'Recalculating…' : 'Recalculate Scores'}
+        </Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -142,6 +180,9 @@ const styles = StyleSheet.create({
   revealButtonActive: { backgroundColor: colors.success + '22' },
   revealButtonText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
   revealButtonTextActive: { color: colors.success },
-  signOutButton: { marginTop: 24, paddingVertical: 14, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: 12, alignItems: 'center' },
+  recalcButton: { marginTop: 16, paddingVertical: 14, backgroundColor: colors.primary + '15', borderRadius: 12, alignItems: 'center' },
+  recalcButtonDisabled: { opacity: 0.5 },
+  recalcButtonText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
+  signOutButton: { marginTop: 12, paddingVertical: 14, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: 12, alignItems: 'center' },
   signOutText: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
 });

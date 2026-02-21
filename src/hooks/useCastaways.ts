@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 import type { Castaway, Tribe } from '@/types';
 
 async function fetchCastaways(): Promise<Castaway[]> {
@@ -14,9 +15,12 @@ async function fetchCastaways(): Promise<Castaway[]> {
 }
 
 export function useCastaways() {
+  const session = useAuthStore((state) => state.session);
+
   return useQuery({
     queryKey: ['castaways'],
     queryFn: fetchCastaways,
+    enabled: !!session,
     staleTime: 1000 * 60 * 5, // 5 minutes — castaway data rarely changes
   });
 }

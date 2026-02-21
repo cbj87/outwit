@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
-import type { Picks, ProphecyAnswer, ScoreCache, ScoreCacheTrioDetail, Profile, Tribe } from '@/types';
+import type { Picks, ProphecyAnswer, ProphecyOutcome, ScoreCache, ScoreCacheTrioDetail, Profile, Tribe } from '@/types';
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -15,10 +15,11 @@ export default function PlayerDetailScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['player-picks', id],
     queryFn: async () => {
-      const [profileResult, picksResult, answersResult, cacheResult, trioDetailResult] = await Promise.all([
+      const [profileResult, picksResult, answersResult, outcomesResult, cacheResult, trioDetailResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('picks').select('*').eq('player_id', id).maybeSingle(),
         supabase.from('prophecy_answers').select('*').eq('player_id', id),
+        supabase.from('prophecy_outcomes').select('*'),
         supabase.from('score_cache').select('*').eq('player_id', id).maybeSingle(),
         supabase.from('score_cache_trio_detail').select('*').eq('player_id', id),
       ]);
@@ -27,6 +28,7 @@ export default function PlayerDetailScreen() {
         profile: profileResult.data as Profile,
         picks: picksResult.data as Picks | null,
         prophecyAnswers: (answersResult.data ?? []) as ProphecyAnswer[],
+        prophecyOutcomes: (outcomesResult.data ?? []) as ProphecyOutcome[],
         scores: cacheResult.data as ScoreCache | null,
         trioDetail: (trioDetailResult.data ?? []) as ScoreCacheTrioDetail[],
       };
@@ -42,7 +44,7 @@ export default function PlayerDetailScreen() {
     );
   }
 
-  const { profile, picks, prophecyAnswers, scores, trioDetail } = data;
+  const { profile, picks, prophecyAnswers, prophecyOutcomes, scores, trioDetail } = data;
 
   if (!picks) {
     return (
@@ -54,6 +56,7 @@ export default function PlayerDetailScreen() {
 
   const trio = [picks.trio_castaway_1, picks.trio_castaway_2, picks.trio_castaway_3];
   const answersMap = new Map(prophecyAnswers.map((a) => [a.question_id, a.answer]));
+  const outcomesMap = new Map(prophecyOutcomes.map((o) => [o.question_id, o.outcome]));
   const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
   const trioPoints = scores?.trio_points ?? 0;
   const ickyPoints = scores?.icky_points ?? 0;
@@ -112,7 +115,7 @@ export default function PlayerDetailScreen() {
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
-            onPress={() => router.push(`/castaways/${picks.icky_castaway}`)}
+            onPress={() => router.push(`/castaways/${picks.icky_castaway}?context=icky`)}
           />
         );
       })()}
@@ -121,9 +124,19 @@ export default function PlayerDetailScreen() {
       <SectionHeader title="Prophecy Picks" points={prophecyPoints} />
       {PROPHECY_QUESTIONS.map((q) => {
         const answer = answersMap.get(q.id);
+        const outcome = outcomesMap.get(q.id);
+        const isResolved = outcome !== null && outcome !== undefined;
+        const isCorrect = isResolved && answer === outcome;
         return (
-          <View key={q.id} style={styles.prophecyRow}>
-            <Text style={styles.prophecyText}>{q.text}</Text>
+          <View key={q.id} style={[styles.prophecyRow, isResolved && (isCorrect ? styles.prophecyRowCorrect : styles.prophecyRowWrong)]}>
+            <View style={styles.prophecyLeft}>
+              <Text style={[styles.prophecyText, isResolved && !isCorrect && styles.prophecyTextWrong]}>{q.text}</Text>
+              {isResolved && (
+                <Text style={[styles.prophecyResult, isCorrect ? styles.prophecyResultCorrect : styles.prophecyResultWrong]}>
+                  {isCorrect ? `+${q.points}pt` : '+0pt'}
+                </Text>
+              )}
+            </View>
             <View style={styles.prophecyRight}>
               {answer !== undefined ? (
                 <Text style={[styles.prophecyAnswer, answer ? styles.answerYes : styles.answerNo]}>
@@ -132,7 +145,13 @@ export default function PlayerDetailScreen() {
               ) : (
                 <Text style={styles.prophecySkipped}>—</Text>
               )}
-              <Text style={styles.prophecyPts}>{q.points}pt</Text>
+              {isResolved ? (
+                <Text style={isCorrect ? styles.prophecyCorrectIcon : styles.prophecyWrongIcon}>
+                  {isCorrect ? '\u2713' : '\u2717'}
+                </Text>
+              ) : (
+                <Text style={styles.prophecyPts}>{q.points}pt</Text>
+              )}
             </View>
           </View>
         );
@@ -188,11 +207,20 @@ const styles = StyleSheet.create({
   positive: { color: colors.scorePositive },
   negative: { color: colors.scoreNegative },
   prophecyRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, marginHorizontal: 16, marginBottom: 2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
-  prophecyText: { flex: 1, color: colors.textPrimary, fontSize: 13 },
+  prophecyRowCorrect: { backgroundColor: colors.success + '10' },
+  prophecyRowWrong: { backgroundColor: colors.error + '08' },
+  prophecyLeft: { flex: 1, gap: 2 },
+  prophecyText: { color: colors.textPrimary, fontSize: 13 },
+  prophecyTextWrong: { color: colors.textSecondary },
+  prophecyResult: { fontSize: 11, fontWeight: '700' },
+  prophecyResultCorrect: { color: colors.success },
+  prophecyResultWrong: { color: colors.textMuted },
   prophecyRight: { alignItems: 'flex-end', gap: 2 },
   prophecyAnswer: { fontSize: 12, fontWeight: '800' },
   answerYes: { color: colors.success },
   answerNo: { color: colors.error },
+  prophecyCorrectIcon: { color: colors.success, fontSize: 14, fontWeight: '900' },
+  prophecyWrongIcon: { color: colors.error, fontSize: 14, fontWeight: '900' },
   prophecySkipped: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   prophecyPts: { color: colors.textMuted, fontSize: 10 },
 });

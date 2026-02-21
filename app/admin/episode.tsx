@@ -357,12 +357,40 @@ export default function EpisodeScreen() {
                 .update({ is_finalized: true, is_merge: isMerge, is_finale: isFinale })
                 .eq('id', episodeId);
 
-              // Mark departed castaways as inactive
+              // Mark departed castaways as inactive with placement data
               if (votedOff.size > 0) {
-                await supabase
-                  .from('castaways')
-                  .update({ is_active: false })
-                  .in('id', Array.from(votedOff));
+                const mergeHappened = isMerge || (pastEpisodes ?? []).some((ep) => ep.is_merge && ep.is_finalized);
+                const alreadyEliminated = (castaways ?? []).filter((c: Castaway) => !c.is_active).length;
+                const epNum = parseInt(episodeNumber, 10);
+
+                let bootIdx = 0;
+                for (const id of votedOff) {
+                  const details = votedOffDetails[id];
+                  const isFirstBoot = details?.has('first_boot') || (epNum === 1 && alreadyEliminated === 0 && votedOff.size === 1);
+
+                  // Finale placements come from milestones (placed_3rd, placed_runner_up, sole_survivor)
+                  const hasPlaced3rd = milestones['placed_3rd']?.has(id);
+                  const hasRunnerUp = milestones['placed_runner_up']?.has(id);
+                  const hasWinner = milestones['sole_survivor']?.has(id);
+
+                  let finalPlacement: string | null = null;
+                  if (hasWinner) finalPlacement = 'winner';
+                  else if (hasRunnerUp) finalPlacement = 'runner_up';
+                  else if (hasPlaced3rd) finalPlacement = '3rd';
+                  else if (isFirstBoot) finalPlacement = 'first_boot';
+                  else if (!mergeHappened) finalPlacement = 'pre_merge';
+                  else finalPlacement = 'jury';
+
+                  await supabase
+                    .from('castaways')
+                    .update({
+                      is_active: false,
+                      boot_order: alreadyEliminated + bootIdx + 1,
+                      final_placement: finalPlacement,
+                    })
+                    .eq('id', id);
+                  bootIdx++;
+                }
               }
 
               await supabase

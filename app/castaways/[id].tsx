@@ -2,12 +2,22 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
+import { EVENT_LABELS, EVENT_SCORES, ICKY_PICK_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
 import type { Castaway, CastawayEvent } from '@/types';
 
+const PLACEMENT_LABELS: Record<string, string> = {
+  first_boot: 'First Boot',
+  pre_merge: 'Pre-Merge',
+  jury: 'Jury Member',
+  '3rd': '3rd Place',
+  runner_up: 'Runner-Up',
+  winner: 'Sole Survivor',
+};
+
 export default function CastawayDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, context } = useLocalSearchParams<{ id: string; context?: string }>();
+  const isIckyContext = context === 'icky';
 
   const { data, isLoading } = useQuery({
     queryKey: ['castaway', id],
@@ -49,6 +59,37 @@ export default function CastawayDetailScreen() {
           <Text style={styles.bootOrder}>Eliminated: Episode {castaway.boot_order}</Text>
         )}
       </View>
+
+      {/* Icky Pick scoring context */}
+      {isIckyContext && (
+        <>
+          <Text style={styles.sectionTitle}>Icky Pick Scoring</Text>
+          {castaway.final_placement ? (
+            <View style={styles.ickyResultRow}>
+              <Text style={styles.ickyPlacementLabel}>
+                {PLACEMENT_LABELS[castaway.final_placement] ?? castaway.final_placement}
+              </Text>
+              <Text style={[
+                styles.ickyPlacementPoints,
+                (ICKY_PICK_SCORES[castaway.final_placement] ?? 0) > 0 && styles.positive,
+                (ICKY_PICK_SCORES[castaway.final_placement] ?? 0) < 0 && styles.negative,
+              ]}>
+                {(ICKY_PICK_SCORES[castaway.final_placement] ?? 0) > 0
+                  ? `+${ICKY_PICK_SCORES[castaway.final_placement]}`
+                  : ICKY_PICK_SCORES[castaway.final_placement] ?? 0}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.noEvents}>Not yet eliminated — no Icky points awarded.</Text>
+          )}
+          <View style={styles.ickyRulesBox}>
+            <Text style={styles.ickyRulesTitle}>How Icky Pick Scoring Works</Text>
+            <Text style={styles.ickyRulesText}>
+              Points are based on final placement only — no event or survival points apply.
+            </Text>
+          </View>
+        </>
+      )}
 
       {/* Event log */}
       <Text style={styles.sectionTitle}>Event History</Text>
@@ -93,4 +134,10 @@ const styles = StyleSheet.create({
   eventPoints: { fontSize: 14, fontWeight: '700' },
   positive: { color: colors.scorePositive },
   negative: { color: colors.scoreNegative },
+  ickyResultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: 8 },
+  ickyPlacementLabel: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  ickyPlacementPoints: { fontSize: 18, fontWeight: '800' },
+  ickyRulesBox: { marginHorizontal: 16, marginTop: 10, marginBottom: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 8, borderLeftWidth: 3, borderLeftColor: colors.textMuted },
+  ickyRulesTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  ickyRulesText: { color: colors.textMuted, fontSize: 12, lineHeight: 16 },
 });

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import type { Profile } from '@/types';
@@ -6,6 +7,7 @@ import type { Profile } from '@/types';
 export function useAuth() {
   const { session, profile, isLoading, isCommissioner, setSession, setProfile, setIsLoading, reset } =
     useAuthStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Get initial session
@@ -23,8 +25,11 @@ export function useAuth() {
       setSession(session);
       if (session) {
         fetchProfile(session.user.id);
+        // Invalidate all queries so they re-fetch with the authenticated session
+        queryClient.invalidateQueries();
       } else {
         reset();
+        queryClient.clear();
       }
     });
 
