@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useIsCommissioner } from '@/hooks/useIsCommissioner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +47,7 @@ export default function ProfileScreen() {
   const isCommissioner = useIsCommissioner();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [isSavingName, setIsSavingName] = useState(false);
@@ -105,14 +107,14 @@ export default function ProfileScreen() {
       const ext = asset.uri.split('.').pop()?.toLowerCase() ?? 'jpg';
       const filePath = `${profile.id}/avatar.${ext}`;
 
-      // Read the file as a blob
+      // Read the file as an ArrayBuffer (blob uploads send 0 bytes in RN)
       const response = await fetch(asset.uri);
-      const blob = await response.blob();
+      const arrayBuffer = await response.arrayBuffer();
 
       // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, blob, {
+        .upload(filePath, arrayBuffer, {
           upsert: true,
           contentType: asset.mimeType ?? `image/${ext}`,
         });
@@ -136,6 +138,8 @@ export default function ProfileScreen() {
       if (updateError) throw updateError;
 
       await refreshProfile();
+      // Invalidate cached queries so avatar shows everywhere (leaderboard, castaways, etc.)
+      queryClient.invalidateQueries({ queryKey: ['all-picks'] });
     } catch (e: any) {
       Alert.alert('Upload failed', e.message ?? 'Could not upload avatar.');
     } finally {
