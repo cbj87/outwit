@@ -1,9 +1,12 @@
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { EVENT_LABELS, EVENT_SCORES, ICKY_PICK_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
+import { useAllPicks } from '@/hooks/useAllPicks';
+import type { PlayerPick } from '@/hooks/useAllPicks';
 import type { Castaway, CastawayEvent } from '@/types';
 
 const PLACEMENT_LABELS: Record<string, string> = {
@@ -14,6 +17,38 @@ const PLACEMENT_LABELS: Record<string, string> = {
   runner_up: 'Runner-Up',
   winner: 'Sole Survivor',
 };
+
+const PICKER_AVATAR_SIZE = 32;
+const PICKER_BORDER = 2;
+
+function PickerRow({ player, type }: { player: PlayerPick; type: 'trio' | 'icky' }) {
+  const ringColor = type === 'trio' ? colors.success : colors.error;
+  const label = type === 'trio' ? 'Trusted Trio' : 'Icky Pick';
+  const initials = player.display_name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <View style={styles.pickerRow}>
+      <View style={[styles.pickerAvatarOuter, { borderColor: ringColor }]}>
+        {player.avatar_url ? (
+          <Image source={{ uri: player.avatar_url }} style={styles.pickerAvatarImage} contentFit="cover" />
+        ) : (
+          <View style={[styles.pickerAvatarImage, styles.pickerAvatarPlaceholder]}>
+            <Text style={styles.pickerInitials}>{initials}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.pickerName}>{player.display_name}</Text>
+      <View style={[styles.pickTypeBadge, { backgroundColor: type === 'trio' ? '#E8F5E9' : '#FFEBEE' }]}>
+        <Text style={[styles.pickTypeText, { color: ringColor }]}>{label}</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function CastawayDetailScreen() {
   const { id, context } = useLocalSearchParams<{ id: string; context?: string }>();
@@ -37,12 +72,15 @@ export default function CastawayDetailScreen() {
     },
   });
 
+  const { castawayPickMap, revealed } = useAllPicks();
+
   if (isLoading || !data) {
     return <View style={styles.centered}><ActivityIndicator color={colors.primary} size="large" /></View>;
   }
 
   const { castaway, events } = data;
   const tribeColor = tribeColors[castaway.tribe];
+  const pickData = castawayPickMap?.get(Number(id));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -59,6 +97,21 @@ export default function CastawayDetailScreen() {
           <Text style={styles.bootOrder}>Eliminated: Episode {castaway.boot_order}</Text>
         )}
       </View>
+
+      {/* Picked By */}
+      {revealed && pickData && (pickData.trio.length > 0 || pickData.icky.length > 0) && (
+        <>
+          <Text style={styles.sectionTitle}>Picked By</Text>
+          <View style={styles.pickedByContainer}>
+            {pickData.trio.map((player) => (
+              <PickerRow key={`trio-${player.player_id}`} player={player} type="trio" />
+            ))}
+            {pickData.icky.map((player) => (
+              <PickerRow key={`icky-${player.player_id}`} player={player} type="icky" />
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Icky Pick scoring context */}
       {isIckyContext && (
@@ -140,4 +193,35 @@ const styles = StyleSheet.create({
   ickyRulesBox: { marginHorizontal: 16, marginTop: 10, marginBottom: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 8, borderLeftWidth: 3, borderLeftColor: colors.textMuted },
   ickyRulesTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', marginBottom: 4 },
   ickyRulesText: { color: colors.textMuted, fontSize: 12, lineHeight: 16 },
+  pickedByContainer: { marginHorizontal: 16, marginBottom: 16, gap: 2 },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 10,
+  },
+  pickerAvatarOuter: {
+    width: PICKER_AVATAR_SIZE + PICKER_BORDER * 2,
+    height: PICKER_AVATAR_SIZE + PICKER_BORDER * 2,
+    borderRadius: (PICKER_AVATAR_SIZE + PICKER_BORDER * 2) / 2,
+    borderWidth: PICKER_BORDER,
+    backgroundColor: colors.surface,
+  },
+  pickerAvatarImage: {
+    width: PICKER_AVATAR_SIZE,
+    height: PICKER_AVATAR_SIZE,
+    borderRadius: PICKER_AVATAR_SIZE / 2,
+  },
+  pickerAvatarPlaceholder: {
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerInitials: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  pickerName: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '600' },
+  pickTypeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+  pickTypeText: { fontSize: 11, fontWeight: '700' },
 });
