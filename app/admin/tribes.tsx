@@ -12,13 +12,27 @@ import Animated, {
 } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
 import { useCastaways } from '@/hooks/useCastaways';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors, useTribeColorMutation } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 import type { Castaway } from '@/types';
 
 /* ─── Constants ──────────────────────────────────────────────────── */
 
 const CHIP_HEIGHT = 40;
 const SPRING_CONFIG = { damping: 20, stiffness: 200 };
+
+const COLOR_PRESETS = [
+  '#2E7D32', // forest green
+  '#1565C0', // ocean blue
+  '#F57F17', // warm amber
+  '#8E24AA', // purple
+  '#D84315', // burnt orange
+  '#00838F', // teal
+  '#C62828', // deep red
+  '#8E8E93', // gray
+  '#4E342E', // brown
+  '#1B5E20', // dark green
+];
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -34,6 +48,7 @@ interface TribeLayout {
 function DraggableChip({
   castaway,
   isChanged,
+  tribeColorMap,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -41,6 +56,7 @@ function DraggableChip({
 }: {
   castaway: Castaway;
   isChanged: boolean;
+  tribeColorMap: Record<string, string>;
   onDragStart: (id: number) => void;
   onDragMove: (y: number) => void;
   onDragEnd: (id: number) => void;
@@ -54,7 +70,7 @@ function DraggableChip({
   const isActive = useSharedValue(false);
   const startY = useSharedValue(0);
 
-  const originalColor = tribeColors[castaway.original_tribe] ?? colors.textMuted;
+  const originalColor = tribeColorMap[castaway.original_tribe] ?? colors.textMuted;
 
   const gesture = Gesture.Pan()
     .activateAfterLongPress(300)
@@ -109,8 +125,8 @@ function DraggableChip({
 
 /* ─── Static Chip (eliminated castaways — not draggable) ─────────── */
 
-function StaticChip({ castaway }: { castaway: Castaway }) {
-  const originalColor = tribeColors[castaway.original_tribe] ?? colors.textMuted;
+function StaticChip({ castaway, tribeColorMap }: { castaway: Castaway; tribeColorMap: Record<string, string> }) {
+  const originalColor = tribeColorMap[castaway.original_tribe] ?? colors.textMuted;
   return (
     <View style={[styles.chip, styles.chipEliminated]}>
       <View style={[styles.chipDot, { backgroundColor: originalColor, opacity: 0.4 }]} />
@@ -126,10 +142,15 @@ export default function ManageTribesScreen() {
   const insets = useSafeAreaInsets();
   const { data: castaways, isLoading } = useCastaways();
   const scrollRef = useRef<ScrollView>(null);
+  const tribeColorMap = useTribeColors();
+  const colorMutation = useTribeColorMutation();
 
   // Pending changes: castaway id → new tribe name
   const [changes, setChanges] = useState<Record<number, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Color picker state: which tribe is being edited (null = closed)
+  const [colorPickerTribe, setColorPickerTribe] = useState<string | null>(null);
 
   // Drag state
   const [dragCastawayId, setDragCastawayId] = useState<number | null>(null);
@@ -375,10 +396,11 @@ export default function ManageTribesScreen() {
         </Text>
 
         {tribes.map((tribe) => {
-          const tribeColor = tribeColors[tribe] ?? colors.textMuted;
+          const tribeColor = tribeColorMap[tribe] ?? colors.textMuted;
           const members = grouped[tribe] ?? [];
           const isHoverTarget =
             hoveredTribe === tribe && dragCastawayId !== null;
+          const isPickingColor = colorPickerTribe === tribe;
 
           return (
             <View
@@ -387,13 +409,39 @@ export default function ManageTribesScreen() {
               style={[styles.tribeBlock, isHoverTarget && styles.tribeBlockHovered]}
             >
               <View style={[styles.tribeHeader, { borderLeftColor: tribeColor }]}>
-                <Text style={[styles.tribeName, { color: tribeColor }]}>{tribe}</Text>
+                <View style={styles.tribeNameRow}>
+                  <TouchableOpacity
+                    onPress={() => setColorPickerTribe(isPickingColor ? null : tribe)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <View style={[styles.colorSwatch, { backgroundColor: tribeColor }]} />
+                  </TouchableOpacity>
+                  <Text style={[styles.tribeName, { color: tribeColor }]}>{tribe}</Text>
+                </View>
                 <Text style={styles.tribeCount}>{members.filter((m) => m.is_active).length} active</Text>
               </View>
+              {isPickingColor && (
+                <View style={styles.colorPicker}>
+                  {COLOR_PRESETS.map((hex) => (
+                    <TouchableOpacity
+                      key={hex}
+                      onPress={() => {
+                        colorMutation.mutate({ tribe, color: hex });
+                        setColorPickerTribe(null);
+                      }}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: hex },
+                        hex === tribeColor && styles.colorOptionSelected,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
               <View style={styles.chipRow}>
                 {members.map((c) => {
                   if (!c.is_active) {
-                    return <StaticChip key={c.id} castaway={c} />;
+                    return <StaticChip key={c.id} castaway={c} tribeColorMap={tribeColorMap} />;
                   }
                   const isChanged = changes[c.id] !== undefined;
                   return (
@@ -401,6 +449,7 @@ export default function ManageTribesScreen() {
                       key={c.id}
                       castaway={c}
                       isChanged={isChanged}
+                      tribeColorMap={tribeColorMap}
                       onDragStart={handleDragStart}
                       onDragMove={handleDragMove}
                       onDragEnd={handleDragEnd}
@@ -485,8 +534,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 4,
   },
+  tribeNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  colorSwatch: {
+    width: 20, height: 20, borderRadius: 10,
+    borderWidth: 2, borderColor: colors.border,
+  },
   tribeName: { fontSize: 13, fontWeight: '800', letterSpacing: 2 },
   tribeCount: { color: colors.textMuted, fontSize: 12 },
+
+  /* Color picker */
+  colorPicker: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    paddingVertical: 4, paddingHorizontal: 2,
+  },
+  colorOption: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  colorOptionSelected: {
+    borderColor: colors.textPrimary,
+  },
 
   /* Chips */
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

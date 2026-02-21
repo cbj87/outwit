@@ -12,7 +12,8 @@ import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { useMyPicks } from '@/hooks/useMyPicks';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { picksSubmissionSchema } from '@/lib/validation';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 
 const STEPS = ['Trusted Trio', 'Icky Pick', 'Prophecy Picks'];
 
@@ -21,6 +22,7 @@ export default function SubmitPicksScreen() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((state) => state.session?.user.id);
   const { byTribe, isLoading: castawaysLoading } = useCastawaysByTribe();
+  const tribeColors = useTribeColors();
   const { isPicksLocked } = useSeasonConfig();
   const { data: existingPicks } = useMyPicks();
 
@@ -158,6 +160,7 @@ export default function SubmitPicksScreen() {
             selectedTrio={selectedTrio}
             selectedIcky={selectedIcky}
             onToggle={toggleTrio}
+            tribeColors={tribeColors}
           />
         )}
         {step === 1 && (
@@ -166,6 +169,7 @@ export default function SubmitPicksScreen() {
             selectedTrio={selectedTrio}
             selectedIcky={selectedIcky}
             onSelect={selectIcky}
+            tribeColors={tribeColors}
           />
         )}
         {step === 2 && (
@@ -210,19 +214,20 @@ export default function SubmitPicksScreen() {
 }
 
 function StepTrustedTrio({
-  byTribe, selectedTrio, selectedIcky, onToggle,
+  byTribe, selectedTrio, selectedIcky, onToggle, tribeColors,
 }: {
   byTribe: Record<string, any[]>;
   selectedTrio: number[];
   selectedIcky: number | null;
   onToggle: (id: number) => void;
+  tribeColors: Record<string, string>;
 }) {
   return (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Pick Your Trusted Trio</Text>
       <Text style={styles.stepSubtitle}>Choose 3 castaways you want to do well. {selectedTrio.length}/3 selected.</Text>
       {Object.keys(byTribe).map((tribe) => (
-        <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []}
+        <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []} tribeColors={tribeColors}
           renderItem={(castaway) => {
             const selected = selectedTrio.includes(castaway.id);
             const maxed = selectedTrio.length >= 3 && !selected;
@@ -246,19 +251,20 @@ function StepTrustedTrio({
 }
 
 function StepIckyPick({
-  byTribe, selectedTrio, selectedIcky, onSelect,
+  byTribe, selectedTrio, selectedIcky, onSelect, tribeColors,
 }: {
   byTribe: Record<string, any[]>;
   selectedTrio: number[];
   selectedIcky: number | null;
   onSelect: (id: number) => void;
+  tribeColors: Record<string, string>;
 }) {
   return (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Pick Your Icky Pick</Text>
       <Text style={styles.stepSubtitle}>Choose 1 castaway you don't want to win.</Text>
       {Object.keys(byTribe).map((tribe) => (
-        <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []}
+        <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []} tribeColors={tribeColors}
           renderItem={(castaway) => {
             const isInTrio = selectedTrio.includes(castaway.id);
             const selected = selectedIcky === castaway.id;
@@ -318,7 +324,7 @@ function StepProphecy({ answers, onChange }: { answers: Record<number, boolean |
   );
 }
 
-function TribeSection({ tribe, castaways, renderItem }: { tribe: string; castaways: any[]; renderItem: (c: any) => React.ReactNode }) {
+function TribeSection({ tribe, castaways, renderItem, tribeColors }: { tribe: string; castaways: any[]; renderItem: (c: any) => React.ReactNode; tribeColors: Record<string, string> }) {
   return (
     <View style={styles.tribeSection}>
       <Text style={[styles.tribeSectionLabel, { color: tribeColors[tribe] ?? colors.textMuted }]}>{tribe}</Text>

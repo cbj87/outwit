@@ -8,7 +8,8 @@ import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -29,6 +30,7 @@ export default function MyPicksScreen() {
   const { data, isLoading } = useMyPicks();
   const { config, isPicksLocked } = useSeasonConfig();
   const castawayMap = useCastawayMap();
+  const tribeColors = useTribeColors();
   const insets = useSafeAreaInsets();
 
   const initials = (profile?.display_name ?? '?')
@@ -128,6 +130,7 @@ export default function MyPicksScreen() {
             tribe={castaway?.original_tribe ?? '?'}
             points={points}
             isActive={castaway?.is_active ?? true}
+            tribeColors={tribeColors}
           />
         );
       })}
@@ -142,6 +145,7 @@ export default function MyPicksScreen() {
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
+            tribeColors={tribeColors}
           />
         );
       })()}
@@ -190,7 +194,7 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean }) {
+function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean; tribeColors: Record<string, string> }) {
   const tribeColor = tribeColors[tribe] ?? colors.textMuted;
   return (
     <Glass style={styles.castawayRow} tintColor={tribeColor + '18'}>

@@ -4,7 +4,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { EVENT_LABELS, EVENT_SCORES, ICKY_PICK_SCORES, getSurvivalPoints } from '@/lib/constants';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 import { useAllPicks } from '@/hooks/useAllPicks';
 import type { PlayerPick } from '@/hooks/useAllPicks';
 import type { Castaway, CastawayEvent } from '@/types';
@@ -53,6 +54,7 @@ function PickerRow({ player, type }: { player: PlayerPick; type: 'trio' | 'icky'
 export default function CastawayDetailScreen() {
   const { id, context } = useLocalSearchParams<{ id: string; context?: string }>();
   const isIckyContext = context === 'icky';
+  const tribeColors = useTribeColors();
 
   const { data, isLoading } = useQuery({
     queryKey: ['castaway', id],

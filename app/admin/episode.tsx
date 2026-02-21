@@ -9,7 +9,8 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useCastawaysByTribe } from '@/hooks/useCastaways';
 import { EVENT_LABELS } from '@/lib/constants';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 import type { Castaway, EventType } from '@/types';
 
 // Finale-only milestones
@@ -29,6 +30,7 @@ export default function EpisodeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { byTribe, castaways, isLoading: castawaysLoading } = useCastawaysByTribe();
+  const tribeColors = useTribeColors();
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [episodeId, setEpisodeId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -557,6 +559,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={activeCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={votedOff}
             onToggle={(id) => toggleInSet(setVotedOff, id)}
           />
@@ -602,6 +605,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={immunityWinners}
             onToggle={(id) => toggleInSet(setImmunityWinners, id)}
           />
@@ -618,6 +622,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={rewardWinners}
             onToggle={(id) => toggleInSet(setRewardWinners, id)}
           />
@@ -634,6 +639,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={idolsFound}
             onToggle={(id) => toggleInSet(setIdolsFound, id)}
           />
@@ -650,6 +656,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={advantagesFound}
             onToggle={(id) => toggleInSet(setAdvantagesFound, id)}
           />
@@ -666,6 +673,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={new Set(Object.keys(idolPlays).map(Number))}
             onToggle={toggleIdolPlay}
           />
@@ -699,6 +707,7 @@ export default function EpisodeScreen() {
           <CastawayChipGrid
             castaways={remainingCastaways}
             byTribe={byTribe}
+            tribeColors={tribeColors}
             selected={new Set(Object.keys(shotInDark).map(Number))}
             onToggle={toggleShotInDark}
           />
@@ -733,6 +742,7 @@ export default function EpisodeScreen() {
             <CastawayChipGrid
               castaways={remainingCastaways}
               byTribe={byTribe}
+              tribeColors={tribeColors}
               selected={milestones['made_jury'] ?? new Set<number>()}
               onToggle={(id) => toggleMilestone('made_jury', id)}
             />
@@ -756,6 +766,7 @@ export default function EpisodeScreen() {
                   <CastawayChipGrid
                     castaways={remainingCastaways}
                     byTribe={byTribe}
+                    tribeColors={tribeColors}
                     selected={selectedIds}
                     onToggle={(id) => toggleMilestone(event, id)}
                   />
@@ -863,12 +874,13 @@ function CategoryCard({
 }
 
 function CastawayChipGrid({
-  castaways, byTribe, selected, onToggle,
+  castaways, byTribe, selected, onToggle, tribeColors,
 }: {
   castaways: Castaway[];
   byTribe: Record<string, Castaway[]>;
   selected: Set<number>;
   onToggle: (id: number) => void;
+  tribeColors: Record<string, string>;
 }) {
   const tribes = Object.keys(byTribe);
   const activeIds = new Set(castaways.map((c) => c.id));

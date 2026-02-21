@@ -5,13 +5,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCastaways } from '@/hooks/useCastaways';
 import { EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 import type { Castaway, EventType } from '@/types';
 
 export default function EpisodeRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const episodeId = Number(id);
   const { data: castaways, isLoading: castawaysLoading } = useCastaways();
+  const tribeColors = useTribeColors();
   const castawayMap = useMemo(() => {
     const map = new Map<number, Castaway>();
     castaways?.forEach((c) => map.set(c.id, c));

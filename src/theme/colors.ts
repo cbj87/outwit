@@ -38,7 +38,7 @@ export const colors = {
   scoreNeutral: '#AEAEB2',
 } as const;
 
-export const tribeColors: Record<string, string> = {
+export const defaultTribeColors: Record<string, string> = {
   VATU: colors.vatu,
   CILA: colors.cila,
   KALO: colors.kalo,

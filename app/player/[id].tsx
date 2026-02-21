@@ -6,13 +6,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS, EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 import type { Picks, ProphecyAnswer, ProphecyOutcome, ScoreCache, ScoreCacheTrioDetail, Profile, Tribe, EventType, CastawayEvent } from '@/types';
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const castawayMap = useCastawayMap();
+  const tribeColors = useTribeColors();
 
   const { data, isLoading } = useQuery({
     queryKey: ['player-picks', id],
@@ -168,7 +170,7 @@ export default function PlayerDetailScreen() {
 
       {/* Episode Breakdown (collapsible) */}
       {episodeBreakdown.length > 0 && (
-        <EpisodeBreakdownSection episodes={episodeBreakdown} totalPoints={trioPoints} castawayMap={castawayMap} />
+        <EpisodeBreakdownSection episodes={episodeBreakdown} totalPoints={trioPoints} castawayMap={castawayMap} tribeColors={tribeColors} />
       )}
 
       {/* Trusted Trio */}
@@ -183,6 +185,7 @@ export default function PlayerDetailScreen() {
             tribe={castaway?.original_tribe}
             points={points}
             isActive={castaway?.is_active ?? true}
+            tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${castawayId}`)}
           />
         );
@@ -199,6 +202,7 @@ export default function PlayerDetailScreen() {
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
+            tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${picks.icky_castaway}?context=icky`)}
           />
         );
@@ -254,8 +258,8 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky, onPress }: { name: string; tribe?: Tribe; points: number; isActive: boolean; isIcky?: boolean; onPress?: () => void }) {
-  const tribeColor = tribe ? tribeColors[tribe] : colors.textMuted;
+function CastawayRow({ name, tribe, points, isActive, isIcky, onPress, tribeColors }: { name: string; tribe?: Tribe; points: number; isActive: boolean; isIcky?: boolean; onPress?: () => void; tribeColors: Record<string, string> }) {
+  const tribeColor = tribe ? (tribeColors[tribe] ?? colors.textMuted) : colors.textMuted;
   return (
     <TouchableOpacity style={[styles.castawayRow, { borderLeftColor: tribeColor }]} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
@@ -278,7 +282,7 @@ interface EpisodeBD {
   }[];
 }
 
-function EpisodeBreakdownSection({ episodes, totalPoints, castawayMap }: { episodes: EpisodeBD[]; totalPoints: number; castawayMap: Map<number, import('@/types').Castaway> }) {
+function EpisodeBreakdownSection({ episodes, totalPoints, castawayMap, tribeColors }: { episodes: EpisodeBD[]; totalPoints: number; castawayMap: Map<number, import('@/types').Castaway>; tribeColors: Record<string, string> }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -291,13 +295,13 @@ function EpisodeBreakdownSection({ episodes, totalPoints, castawayMap }: { episo
         <Text style={[styles.sectionPoints, totalPoints < 0 && styles.negative]}>{totalPoints} pts</Text>
       </TouchableOpacity>
       {open && episodes.map((ep) => (
-        <EpisodeRow key={ep.episodeNumber} episode={ep} castawayMap={castawayMap} />
+        <EpisodeRow key={ep.episodeNumber} episode={ep} castawayMap={castawayMap} tribeColors={tribeColors} />
       ))}
     </>
   );
 }
 
-function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap: Map<number, import('@/types').Castaway> }) {
+function EpisodeRow({ episode, castawayMap, tribeColors }: { episode: EpisodeBD; castawayMap: Map<number, import('@/types').Castaway>; tribeColors: Record<string, string> }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -319,7 +323,7 @@ function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap:
         <View style={styles.episodeDetail}>
           {episode.castawayBreakdowns.map(({ castawayId, points, details }) => {
             const castaway = castawayMap.get(castawayId);
-            const tribeColor = castaway?.original_tribe ? tribeColors[castaway.original_tribe] : colors.textMuted;
+            const tribeColor = castaway?.original_tribe ? (tribeColors[castaway.original_tribe] ?? colors.textMuted) : colors.textMuted;
             return (
               <View key={castawayId} style={styles.epCastawayBlock}>
                 <View style={styles.epCastawayHeader}>

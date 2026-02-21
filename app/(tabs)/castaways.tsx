@@ -5,7 +5,8 @@ import { useRouter } from 'expo-router';
 import { useCastawaysByTribe } from '@/hooks/useCastaways';
 import { useAllPicks } from '@/hooks/useAllPicks';
 import { PickAvatars } from '@/components/castaways/PickAvatars';
-import { colors, tribeColors } from '@/theme/colors';
+import { useTribeColors } from '@/hooks/useTribeColors';
+import { colors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -24,6 +25,7 @@ export default function CastawaysScreen() {
   const router = useRouter();
   const { byTribe, isLoading } = useCastawaysByTribe();
   const { castawayPickMap, revealed } = useAllPicks();
+  const tribeColors = useTribeColors();
   const insets = useSafeAreaInsets();
 
   if (isLoading || !byTribe) {
