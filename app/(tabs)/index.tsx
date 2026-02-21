@@ -1,7 +1,8 @@
+import { useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { colors } from '@/theme/colors';
@@ -78,9 +79,16 @@ function ListHeader({ config, insets }: { config: any; insets: any }) {
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { config, isLoading: configLoading } = useSeasonConfig();
-  const { entries, isLoading } = useLeaderboard(config?.picks_revealed ?? false);
+  const { entries, isLoading, refetch } = useLeaderboard(config?.picks_revealed ?? false);
   const insets = useSafeAreaInsets();
   const picksRevealed = config?.picks_revealed ?? false;
+
+  // Refetch when tab gains focus so profile changes (name, avatar) show immediately
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   if (isLoading || configLoading) {
     return (

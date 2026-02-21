@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -49,6 +49,13 @@ export default function ProfileScreen() {
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [isSavingName, setIsSavingName] = useState(false);
+
+  // Keep input in sync when profile loads or updates externally
+  useEffect(() => {
+    if (profile?.display_name) {
+      setDisplayName(profile.display_name);
+    }
+  }, [profile?.display_name]);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const hasNameChanged = displayName.trim() !== (profile?.display_name ?? '');

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { sortAndRankScores } from '@/lib/scoring';
 import type { PlayerScore, ScoreCache, Profile, Picks } from '@/types';
@@ -8,13 +8,16 @@ interface LeaderboardEntry extends PlayerScore {}
 export function useLeaderboard(picksRevealed: boolean) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const picksRevealedRef = useRef(picksRevealed);
+  picksRevealedRef.current = picksRevealed;
 
-  async function fetchLeaderboard() {
+  const fetchLeaderboard = useCallback(async () => {
+    const revealed = picksRevealedRef.current;
     // Fetch score cache + profiles in parallel
     const [scoresResult, profilesResult, picksResult] = await Promise.all([
       supabase.from('score_cache').select('*'),
       supabase.from('profiles').select('id, display_name, avatar_url'),
-      picksRevealed
+      revealed
         ? supabase.from('picks').select('player_id, trio_castaway_1, trio_castaway_2, trio_castaway_3, icky_castaway')
         : Promise.resolve({ data: [] as Picks[], error: null }),
     ]);
@@ -25,7 +28,6 @@ export function useLeaderboard(picksRevealed: boolean) {
     const profiles = profilesResult.data as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[];
     const picksData = picksResult.data as Picks[];
 
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
     const picksMap = new Map(picksData.map((p) => [p.player_id, p]));
 
     const combined: Omit<LeaderboardEntry, 'rank' | 'is_tied'>[] = profiles.map((profile) => {
@@ -40,27 +42,32 @@ export function useLeaderboard(picksRevealed: boolean) {
         icky_points: score?.icky_points ?? 0,
         prophecy_points: score?.prophecy_points ?? 0,
         total_points: score?.total_points ?? 0,
-        trio_castaways: picksRevealed && pick
+        trio_castaways: revealed && pick
           ? [pick.trio_castaway_1, pick.trio_castaway_2, pick.trio_castaway_3]
           : null,
-        icky_castaway: picksRevealed && pick ? pick.icky_castaway : null,
+        icky_castaway: revealed && pick ? pick.icky_castaway : null,
       };
     });
 
     const ranked = sortAndRankScores(combined);
     setEntries(ranked);
     setIsLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
     fetchLeaderboard();
 
-    // Subscribe to score cache changes for live updates
+    // Subscribe to score cache + profile changes for live updates
     const channel = supabase
-      .channel('score_cache_changes')
+      .channel('leaderboard_changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'score_cache' },
+        () => fetchLeaderboard(),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
         () => fetchLeaderboard(),
       )
       .subscribe();
