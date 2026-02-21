@@ -64,42 +64,48 @@ Deno.serve(async (req) => {
   // Verify caller is authenticated commissioner (or service role for dashboard/CLI invocation)
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const token = authHeader.replace('Bearer ', '');
 
-  // Check if this is the service role key (try multiple env var names)
+  // Check if this is the service role key
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     ?? Deno.env.get('SERVICE_ROLE_KEY');
   const isServiceRole = serviceRoleKey && token === serviceRoleKey;
 
   if (!isServiceRole) {
-    // Try to authenticate as a user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    // Decode the JWT payload locally (no network call) to get the user ID
+    let userId: string | null = null;
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64));
+      userId = payload.sub ?? null;
+    } catch {
+      return new Response(JSON.stringify({ error: 'Malformed token' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
-    if (authError || !user) {
-      // If user auth fails, check if the token can query profiles (service role can)
-      const { count, error: probeError } = await createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        token,
-      ).from('profiles').select('*', { count: 'exact', head: true });
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'No user ID in token' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
-      if (probeError || count === null) {
-        return new Response('Unauthorized', { status: 401 });
-      }
-      // Service role key can query — allow through
-    } else {
-      // Verify user is commissioner
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_commissioner')
-        .eq('id', user.id)
-        .single();
+    // Use service role client to verify user is commissioner
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_commissioner')
+      .eq('id', userId)
+      .single();
 
-      if (!profile?.is_commissioner) {
-        return new Response('Forbidden', { status: 403 });
-      }
+    if (profileError || !profile?.is_commissioner) {
+      return new Response(JSON.stringify({ error: 'Forbidden — not a commissioner' }), {
+        status: 403, headers: { 'Content-Type': 'application/json' },
+      });
     }
   }
 

@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 
 const queryClient = new QueryClient({
@@ -51,6 +53,25 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
+  // Keep Supabase tokens fresh — required for React Native where
+  // setInterval-based auto-refresh can stall when the app is backgrounded.
+  useEffect(() => {
+    supabase.auth.startAutoRefresh();
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      supabase.auth.stopAutoRefresh();
+    };
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>

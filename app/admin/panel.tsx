@@ -114,23 +114,25 @@ export default function CommissionerPanelScreen() {
         onPress={async () => {
           setIsRecalculating(true);
           try {
+            // Force a fresh token — getSession() returns cached/potentially expired JWTs
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (refreshError || !refreshData.session) throw new Error('Session expired — please sign in again.');
             const accessToken = refreshData.session.access_token;
-            const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/calculate-scores`;
-            const res = await fetch(fnUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+
+            const res = await fetch(
+              `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/calculate-scores`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ episode_id: null }),
               },
-              body: JSON.stringify({ episode_id: null }),
-            });
-            if (!res.ok) {
-              const text = await res.text();
-              throw new Error(`${res.status}: ${text}`);
-            }
+            );
+            const text = await res.text();
+            if (!res.ok) throw new Error(`${res.status}: ${text}`);
             Alert.alert('Done', 'All scores have been recalculated.');
           } catch (e: any) {
             Alert.alert('Error', e.message ?? 'Failed to recalculate scores.');
