@@ -48,10 +48,16 @@ export function useAuth() {
     setIsLoading(false);
   }
 
+  async function refreshProfile() {
+    if (session?.user.id) {
+      await fetchProfile(session.user.id);
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     reset();
   }
 
-  return { session, profile, isLoading, isCommissioner, signOut };
+  return { session, profile, isLoading, isCommissioner, signOut, refreshProfile };
 }
