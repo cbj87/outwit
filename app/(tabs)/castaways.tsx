@@ -3,6 +3,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
 import { useCastawaysByTribe } from '@/hooks/useCastaways';
+import { useAllPicks } from '@/hooks/useAllPicks';
+import { PickAvatars } from '@/components/castaways/PickAvatars';
 import { colors, tribeColors } from '@/theme/colors';
 import type { Tribe } from '@/types';
 
@@ -25,6 +27,7 @@ const TRIBES: Tribe[] = ['VATU', 'CILA', 'KALO'];
 export default function CastawaysScreen() {
   const router = useRouter();
   const { byTribe, isLoading } = useCastawaysByTribe();
+  const { castawayPickMap, revealed } = useAllPicks();
   const insets = useSafeAreaInsets();
 
   if (isLoading || !byTribe) {
@@ -68,26 +71,30 @@ export default function CastawaysScreen() {
           </View>
           );
         }}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.castawayRow}
-            onPress={() => router.push(`/castaways/${item.id}`)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.tribeDot, { backgroundColor: tribeColors[item.tribe] }]} />
-            <Text style={[styles.castawayName, !item.is_active && styles.eliminated]}>
-              {item.name}
-            </Text>
-            {!item.is_active && (
-              <View style={styles.eliminatedBadge}>
-                <Text style={styles.eliminatedText}>
-                  {item.boot_order ? `Ep ${item.boot_order}` : 'OUT'}
-                </Text>
-              </View>
-            )}
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const picks = revealed ? castawayPickMap?.get(item.id) : null;
+          return (
+            <TouchableOpacity
+              style={styles.castawayRow}
+              onPress={() => router.push(`/castaways/${item.id}`)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.tribeDot, { backgroundColor: tribeColors[item.tribe] }]} />
+              <Text style={[styles.castawayName, !item.is_active && styles.eliminated]}>
+                {item.name}
+              </Text>
+              {!item.is_active && (
+                <View style={styles.eliminatedBadge}>
+                  <Text style={styles.eliminatedText}>
+                    {item.boot_order ? `Ep ${item.boot_order}` : 'OUT'}
+                  </Text>
+                </View>
+              )}
+              {picks && <PickAvatars trio={picks.trio} icky={picks.icky} />}
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          );
+        }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
       />
