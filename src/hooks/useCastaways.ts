@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import type { Castaway, Tribe } from '@/types';
+import type { Castaway } from '@/types';
 
 async function fetchCastaways(): Promise<Castaway[]> {
   const { data, error } = await supabase
     .from('castaways')
     .select('*')
-    .order('tribe')
+    .order('current_tribe')
     .order('name');
 
   if (error) throw error;
@@ -28,12 +28,14 @@ export function useCastaways() {
 export function useCastawaysByTribe() {
   const { data: castaways, ...rest } = useCastaways();
 
-  const byTribe = castaways?.reduce<Record<Tribe, Castaway[]>>(
+  const byTribe = castaways?.reduce<Record<string, Castaway[]>>(
     (acc, castaway) => {
-      acc[castaway.tribe].push(castaway);
+      const tribe = castaway.current_tribe;
+      if (!acc[tribe]) acc[tribe] = [];
+      acc[tribe].push(castaway);
       return acc;
     },
-    { VATU: [], CILA: [], KALO: [] },
+    {},
   );
 
   return { byTribe, castaways, ...rest };

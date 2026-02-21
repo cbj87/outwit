@@ -31,6 +31,7 @@ interface AdminCard {
 const ADMIN_CARDS: AdminCard[] = [
   { title: 'Log Episode', description: 'Record castaway events and finalize episode scores', route: '/admin/episode', emoji: '📺' },
   { title: 'Prophecy Outcomes', description: 'Set true/false outcomes for the 16 season predictions', route: '/admin/prophecy', emoji: '🔮' },
+  { title: 'Manage Tribes', description: 'Update tribe assignments after swaps, splits, or merges', route: '/admin/tribes', emoji: '🏝️' },
 ];
 
 export default function CommissionerPanelScreen() {

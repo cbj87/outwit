@@ -180,7 +180,7 @@ export default function PlayerDetailScreen() {
           <CastawayRow
             key={castawayId}
             name={castaway?.name ?? '?'}
-            tribe={castaway?.tribe}
+            tribe={castaway?.original_tribe}
             points={points}
             isActive={castaway?.is_active ?? true}
             onPress={() => router.push(`/castaways/${castawayId}`)}
@@ -195,7 +195,7 @@ export default function PlayerDetailScreen() {
         return (
           <CastawayRow
             name={castaway?.name ?? '?'}
-            tribe={castaway?.tribe}
+            tribe={castaway?.original_tribe}
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
@@ -319,7 +319,7 @@ function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap:
         <View style={styles.episodeDetail}>
           {episode.castawayBreakdowns.map(({ castawayId, points, details }) => {
             const castaway = castawayMap.get(castawayId);
-            const tribeColor = castaway?.tribe ? tribeColors[castaway.tribe] : colors.textMuted;
+            const tribeColor = castaway?.original_tribe ? tribeColors[castaway.original_tribe] : colors.textMuted;
             return (
               <View key={castawayId} style={styles.epCastawayBlock}>
                 <View style={styles.epCastawayHeader}>

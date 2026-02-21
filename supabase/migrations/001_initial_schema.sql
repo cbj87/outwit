@@ -62,7 +62,8 @@ insert into public.season_config (id) values (1);
 create table public.castaways (
   id                serial primary key,
   name              text not null,
-  tribe             text not null check (tribe in ('VATU', 'CILA', 'KALO')),
+  original_tribe    text not null,
+  current_tribe     text not null,
   photo_url         text,
   is_active         boolean not null default true,
   boot_order        int,

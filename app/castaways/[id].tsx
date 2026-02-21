@@ -79,15 +79,15 @@ export default function CastawayDetailScreen() {
   }
 
   const { castaway, events } = data;
-  const tribeColor = tribeColors[castaway.tribe];
+  const tribeColor = tribeColors[castaway.original_tribe] ?? colors.textMuted;
   const pickData = castawayPickMap?.get(Number(id));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: tribeColor }]}>
-        <View style={[styles.tribeBadge, { backgroundColor: tribeColor }]}>
-          <Text style={styles.tribeBadgeText}>{castaway.tribe}</Text>
+        <View style={[styles.tribeBadge, { backgroundColor: tribeColors[castaway.current_tribe] ?? tribeColor }]}>
+          <Text style={styles.tribeBadgeText}>{castaway.current_tribe}</Text>
         </View>
         <Text style={styles.name}>{castaway.name}</Text>
         <Text style={[styles.status, !castaway.is_active && styles.statusEliminated]}>

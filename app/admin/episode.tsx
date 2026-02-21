@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useCastawaysByTribe } from '@/hooks/useCastaways';
 import { EVENT_LABELS } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
-import type { Castaway, EventType, Tribe } from '@/types';
+import type { Castaway, EventType } from '@/types';
 
 // Finale-only milestones
 const FINALE_MILESTONES: EventType[] = [
@@ -866,11 +866,11 @@ function CastawayChipGrid({
   castaways, byTribe, selected, onToggle,
 }: {
   castaways: Castaway[];
-  byTribe: Record<Tribe, Castaway[]>;
+  byTribe: Record<string, Castaway[]>;
   selected: Set<number>;
   onToggle: (id: number) => void;
 }) {
-  const tribes: Tribe[] = ['VATU', 'CILA', 'KALO'];
+  const tribes = Object.keys(byTribe);
   const activeIds = new Set(castaways.map((c) => c.id));
 
   return (
@@ -880,7 +880,7 @@ function CastawayChipGrid({
         if (tribeCastaways.length === 0) return null;
         return (
           <View key={tribe} style={styles.chipTribeSection}>
-            <Text style={[styles.chipTribeLabel, { color: tribeColors[tribe] }]}>{tribe}</Text>
+            <Text style={[styles.chipTribeLabel, { color: tribeColors[tribe] ?? colors.textMuted }]}>{tribe}</Text>
             <View style={styles.chipRow}>
               {tribeCastaways.map((c) => {
                 const isSelected = selected.has(c.id);

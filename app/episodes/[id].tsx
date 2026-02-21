@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useCastaways } from '@/hooks/useCastaways';
 import { EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { colors, tribeColors } from '@/theme/colors';
-import type { Castaway, EventType, Tribe } from '@/types';
+import type { Castaway, EventType } from '@/types';
 
 export default function EpisodeRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -69,7 +69,7 @@ export default function EpisodeRecapScreen() {
         return {
           castawayId,
           name: castaway?.name ?? `#${castawayId}`,
-          tribe: castaway?.tribe as Tribe | undefined,
+          tribe: castaway?.original_tribe,
           survived,
           notable,
           totalPoints,

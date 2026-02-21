@@ -6,7 +6,6 @@ import { useCastawaysByTribe } from '@/hooks/useCastaways';
 import { useAllPicks } from '@/hooks/useAllPicks';
 import { PickAvatars } from '@/components/castaways/PickAvatars';
 import { colors, tribeColors } from '@/theme/colors';
-import type { Tribe } from '@/types';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -20,9 +19,6 @@ function Glass({ style, children, tintColor }: { style?: any; children: React.Re
   }
   return <View style={style}>{children}</View>;
 }
-
-const TRIBE_LABELS: Record<Tribe, string> = { VATU: 'VATU', CILA: 'CILA', KALO: 'KALO' };
-const TRIBES: Tribe[] = ['VATU', 'CILA', 'KALO'];
 
 export default function CastawaysScreen() {
   const router = useRouter();
@@ -38,7 +34,8 @@ export default function CastawaysScreen() {
     );
   }
 
-  const sections = TRIBES.map((tribe) => ({
+  const tribes = Object.keys(byTribe);
+  const sections = tribes.map((tribe) => ({
     tribe,
     data: byTribe[tribe] ?? [],
   }));
@@ -54,15 +51,16 @@ export default function CastawaysScreen() {
         keyExtractor={(item) => String(item.id)}
         stickySectionHeadersEnabled
         renderSectionHeader={({ section }) => {
-          const isFirst = section.tribe === 'VATU';
+          const isFirst = section.tribe === tribes[0];
+          const color = tribeColors[section.tribe] ?? colors.textMuted;
           return (
           <View style={[!isFirst && styles.tribeHeaderSpacing, styles.tribeHeaderWrapper]}>
           <Glass
-            style={[styles.tribeHeader, { borderLeftColor: tribeColors[section.tribe] }]}
-            tintColor={tribeColors[section.tribe] + '28'}
+            style={[styles.tribeHeader, { borderLeftColor: color }]}
+            tintColor={color + '28'}
           >
-            <Text style={[styles.tribeName, { color: tribeColors[section.tribe] }]}>
-              {TRIBE_LABELS[section.tribe]}
+            <Text style={[styles.tribeName, { color }]}>
+              {section.tribe}
             </Text>
             <Text style={styles.tribeCount}>
               {section.data.filter((c) => c.is_active).length} active
@@ -79,7 +77,7 @@ export default function CastawaysScreen() {
               onPress={() => router.push(`/castaways/${item.id}`)}
               activeOpacity={0.7}
             >
-              <View style={[styles.tribeDot, { backgroundColor: tribeColors[item.tribe] }]} />
+              <View style={[styles.tribeDot, { backgroundColor: tribeColors[item.original_tribe] ?? colors.textMuted }]} />
               <Text style={[styles.castawayName, !item.is_active && styles.eliminated]}>
                 {item.name}
               </Text>

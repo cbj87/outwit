@@ -8,7 +8,7 @@ import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { useAuth } from '@/hooks/useAuth';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
-import { colors } from '@/theme/colors';
+import { colors, tribeColors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -125,7 +125,7 @@ export default function MyPicksScreen() {
           <CastawayRow
             key={castawayId}
             name={castaway?.name ?? '?'}
-            tribe={castaway?.tribe ?? '?'}
+            tribe={castaway?.original_tribe ?? '?'}
             points={points}
             isActive={castaway?.is_active ?? true}
           />
@@ -138,7 +138,7 @@ export default function MyPicksScreen() {
         return (
           <CastawayRow
             name={castaway?.name ?? '?'}
-            tribe={castaway?.tribe ?? '?'}
+            tribe={castaway?.original_tribe ?? '?'}
             points={ickyPoints}
             isActive={castaway?.is_active ?? true}
             isIcky
@@ -191,7 +191,7 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
 }
 
 function CastawayRow({ name, tribe, points, isActive, isIcky }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean }) {
-  const tribeColor = tribe === 'VATU' ? colors.vatu : tribe === 'CILA' ? colors.cila : colors.kalo;
+  const tribeColor = tribeColors[tribe] ?? colors.textMuted;
   return (
     <Glass style={styles.castawayRow} tintColor={tribeColor + '18'}>
       <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />

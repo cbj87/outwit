@@ -38,7 +38,8 @@ export type EventType =
 export interface Castaway {
   id: number;
   name: string;
-  tribe: Tribe;
+  original_tribe: Tribe;
+  current_tribe: string;
   photo_url: string | null;
   is_active: boolean;
   boot_order: number | null;

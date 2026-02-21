@@ -38,8 +38,9 @@ export const colors = {
   scoreNeutral: '#AEAEB2',
 } as const;
 
-export const tribeColors: Record<'VATU' | 'CILA' | 'KALO', string> = {
+export const tribeColors: Record<string, string> = {
   VATU: colors.vatu,
   CILA: colors.cila,
   KALO: colors.kalo,
+  MERGED: '#8E8E93',
 };

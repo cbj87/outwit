@@ -13,7 +13,6 @@ import { useMyPicks } from '@/hooks/useMyPicks';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { picksSubmissionSchema } from '@/lib/validation';
 import { colors, tribeColors } from '@/theme/colors';
-import type { Tribe } from '@/types';
 
 const STEPS = ['Trusted Trio', 'Icky Pick', 'Prophecy Picks'];
 
@@ -213,7 +212,7 @@ export default function SubmitPicksScreen() {
 function StepTrustedTrio({
   byTribe, selectedTrio, selectedIcky, onToggle,
 }: {
-  byTribe: Record<Tribe, any[]>;
+  byTribe: Record<string, any[]>;
   selectedTrio: number[];
   selectedIcky: number | null;
   onToggle: (id: number) => void;
@@ -222,7 +221,7 @@ function StepTrustedTrio({
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Pick Your Trusted Trio</Text>
       <Text style={styles.stepSubtitle}>Choose 3 castaways you want to do well. {selectedTrio.length}/3 selected.</Text>
-      {(['VATU', 'CILA', 'KALO'] as Tribe[]).map((tribe) => (
+      {Object.keys(byTribe).map((tribe) => (
         <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []}
           renderItem={(castaway) => {
             const selected = selectedTrio.includes(castaway.id);
@@ -249,7 +248,7 @@ function StepTrustedTrio({
 function StepIckyPick({
   byTribe, selectedTrio, selectedIcky, onSelect,
 }: {
-  byTribe: Record<Tribe, any[]>;
+  byTribe: Record<string, any[]>;
   selectedTrio: number[];
   selectedIcky: number | null;
   onSelect: (id: number) => void;
@@ -258,7 +257,7 @@ function StepIckyPick({
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Pick Your Icky Pick</Text>
       <Text style={styles.stepSubtitle}>Choose 1 castaway you don't want to win.</Text>
-      {(['VATU', 'CILA', 'KALO'] as Tribe[]).map((tribe) => (
+      {Object.keys(byTribe).map((tribe) => (
         <TribeSection key={tribe} tribe={tribe} castaways={byTribe[tribe] ?? []}
           renderItem={(castaway) => {
             const isInTrio = selectedTrio.includes(castaway.id);
@@ -319,10 +318,10 @@ function StepProphecy({ answers, onChange }: { answers: Record<number, boolean |
   );
 }
 
-function TribeSection({ tribe, castaways, renderItem }: { tribe: Tribe; castaways: any[]; renderItem: (c: any) => React.ReactNode }) {
+function TribeSection({ tribe, castaways, renderItem }: { tribe: string; castaways: any[]; renderItem: (c: any) => React.ReactNode }) {
   return (
     <View style={styles.tribeSection}>
-      <Text style={[styles.tribeSectionLabel, { color: tribeColors[tribe] }]}>{tribe}</Text>
+      <Text style={[styles.tribeSectionLabel, { color: tribeColors[tribe] ?? colors.textMuted }]}>{tribe}</Text>
       <View style={styles.tribeGrid}>
         {castaways.map((c) => renderItem(c))}
       </View>
