@@ -52,8 +52,7 @@ function PickerRow({ player, type }: { player: PlayerPick; type: 'trio' | 'icky'
 }
 
 export default function CastawayDetailScreen() {
-  const { id, context } = useLocalSearchParams<{ id: string; context?: string }>();
-  const isIckyContext = context === 'icky';
+  const { id } = useLocalSearchParams<{ id: string }>();
   const tribeColors = useTribeColors();
 
   const { data, isLoading } = useQuery({
@@ -84,6 +83,19 @@ export default function CastawayDetailScreen() {
   const tribeColor = tribeColors[castaway.original_tribe] ?? colors.textMuted;
   const pickData = castawayPickMap?.get(Number(id));
 
+  // Compute Trusted Trio total (events + survival)
+  const trioTotal = events.reduce((sum, event) => {
+    if (event.event_type === 'survived_episode') {
+      return sum + getSurvivalPoints(event.episodes?.episode_number ?? 0);
+    }
+    return sum + (EVENT_SCORES[event.event_type] ?? 0);
+  }, 0);
+
+  // Compute Icky Pick total (placement only)
+  const ickyTotal = castaway.final_placement
+    ? (ICKY_PICK_SCORES[castaway.final_placement] ?? 0)
+    : 0;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
@@ -103,7 +115,7 @@ export default function CastawayDetailScreen() {
       {/* Picked By */}
       {revealed && pickData && (pickData.trio.length > 0 || pickData.icky.length > 0) && (
         <>
-          <Text style={styles.sectionTitle}>Picked By</Text>
+          <Text style={[styles.sectionTitle, { paddingHorizontal: 16, marginBottom: 8 }]}>Picked By</Text>
           <View style={styles.pickedByContainer}>
             {pickData.trio.map((player) => (
               <PickerRow key={`trio-${player.player_id}`} player={player} type="trio" />
@@ -115,57 +127,67 @@ export default function CastawayDetailScreen() {
         </>
       )}
 
-      {/* Icky Pick scoring context */}
-      {isIckyContext && (
-        <>
-          <Text style={styles.sectionTitle}>Icky Pick Scoring</Text>
-          {castaway.final_placement ? (
-            <View style={styles.ickyResultRow}>
-              <Text style={styles.ickyPlacementLabel}>
-                {PLACEMENT_LABELS[castaway.final_placement] ?? castaway.final_placement}
-              </Text>
-              <Text style={[
-                styles.ickyPlacementPoints,
-                (ICKY_PICK_SCORES[castaway.final_placement] ?? 0) > 0 && styles.positive,
-                (ICKY_PICK_SCORES[castaway.final_placement] ?? 0) < 0 && styles.negative,
-              ]}>
-                {(ICKY_PICK_SCORES[castaway.final_placement] ?? 0) > 0
-                  ? `+${ICKY_PICK_SCORES[castaway.final_placement]}`
-                  : ICKY_PICK_SCORES[castaway.final_placement] ?? 0}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.noEvents}>Not yet eliminated — no Icky points awarded.</Text>
-          )}
-          <View style={styles.ickyRulesBox}>
-            <Text style={styles.ickyRulesTitle}>How Icky Pick Scoring Works</Text>
-            <Text style={styles.ickyRulesText}>
-              Points are based on final placement only — no event or survival points apply.
+      {/* Trusted Trio Score */}
+      <View style={styles.scoringSectionHeader}>
+        <Text style={styles.sectionTitle}>Trusted Trio Score</Text>
+        <Text style={[styles.scoringSectionTotal, trioTotal > 0 && styles.positive, trioTotal < 0 && styles.negative]}>
+          {trioTotal > 0 ? `+${trioTotal}` : trioTotal} pts
+        </Text>
+      </View>
+      <View style={styles.scoringCard}>
+        <Text style={styles.scoringCardSubtitle}>
+          Points earned from events + survival if this castaway is in your Trusted Trio.
+        </Text>
+        {events.length === 0 ? (
+          <Text style={styles.noEventsInline}>No events logged yet.</Text>
+        ) : (
+          events.map((event) => {
+            const pts = event.event_type === 'survived_episode'
+              ? getSurvivalPoints(event.episodes?.episode_number ?? 0)
+              : EVENT_SCORES[event.event_type];
+            return (
+              <View key={event.id} style={styles.eventRow}>
+                <Text style={styles.eventEpisode}>Ep {event.episodes?.episode_number ?? '?'}</Text>
+                <Text style={styles.eventLabel}>{EVENT_LABELS[event.event_type] ?? event.event_type}</Text>
+                <Text style={[styles.eventPoints, pts < 0 && styles.negative, pts > 0 && styles.positive]}>
+                  {pts > 0 ? `+${pts}` : pts}
+                </Text>
+              </View>
+            );
+          })
+        )}
+      </View>
+
+      {/* Icky Pick Score */}
+      <View style={styles.scoringSectionHeader}>
+        <Text style={styles.sectionTitle}>Icky Pick Score</Text>
+        <Text style={[styles.scoringSectionTotal, ickyTotal > 0 && styles.positive, ickyTotal < 0 && styles.negative]}>
+          {ickyTotal > 0 ? `+${ickyTotal}` : ickyTotal} pts
+        </Text>
+      </View>
+      <View style={styles.scoringCard}>
+        <Text style={styles.scoringCardSubtitle}>
+          Points based on final placement only — no event or survival points apply.
+        </Text>
+        {castaway.final_placement ? (
+          <View style={styles.ickyResultRow}>
+            <Text style={styles.ickyPlacementLabel}>
+              {PLACEMENT_LABELS[castaway.final_placement] ?? castaway.final_placement}
+            </Text>
+            <Text style={[
+              styles.ickyPlacementPoints,
+              ickyTotal > 0 && styles.positive,
+              ickyTotal < 0 && styles.negative,
+            ]}>
+              {ickyTotal > 0 ? `+${ickyTotal}` : ickyTotal}
             </Text>
           </View>
-        </>
-      )}
-
-      {/* Event log */}
-      <Text style={styles.sectionTitle}>Event History</Text>
-      {events.length === 0 ? (
-        <Text style={styles.noEvents}>No events logged yet.</Text>
-      ) : (
-        events.map((event) => {
-          const pts = event.event_type === 'survived_episode'
-            ? getSurvivalPoints(event.episodes?.episode_number ?? 0)
-            : EVENT_SCORES[event.event_type];
-          return (
-            <View key={event.id} style={styles.eventRow}>
-              <Text style={styles.eventEpisode}>Ep {event.episodes?.episode_number ?? '?'}</Text>
-              <Text style={styles.eventLabel}>{EVENT_LABELS[event.event_type] ?? event.event_type}</Text>
-              <Text style={[styles.eventPoints, pts < 0 && styles.negative, pts > 0 && styles.positive]}>
-                {pts > 0 ? `+${pts}` : pts}
-              </Text>
-            </View>
-          );
-        })
-      )}
+        ) : (
+          <Text style={styles.noEventsInline}>
+            {castaway.is_active ? 'Still active — no Icky points awarded yet.' : 'Placement not set.'}
+          </Text>
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -181,20 +203,21 @@ const styles = StyleSheet.create({
   status: { color: colors.success, fontSize: 14, fontWeight: '600' },
   statusEliminated: { color: colors.error },
   bootOrder: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
-  sectionTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 16, marginBottom: 8 },
-  noEvents: { color: colors.textMuted, paddingHorizontal: 16, fontStyle: 'italic' },
-  eventRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, marginHorizontal: 16, marginBottom: 2, borderRadius: 8, gap: 10 },
+  sectionTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  scoringSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 20, marginBottom: 8 },
+  scoringSectionTotal: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  scoringCard: { marginHorizontal: 16, backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 4, gap: 2 },
+  scoringCardSubtitle: { color: colors.textMuted, fontSize: 12, marginBottom: 8 },
+  noEventsInline: { color: colors.textMuted, fontStyle: 'italic', paddingVertical: 4 },
+  eventRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
   eventEpisode: { color: colors.textMuted, fontSize: 12, fontWeight: '600', width: 40 },
   eventLabel: { flex: 1, color: colors.textPrimary, fontSize: 14 },
   eventPoints: { fontSize: 14, fontWeight: '700' },
   positive: { color: colors.scorePositive },
   negative: { color: colors.scoreNegative },
-  ickyResultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: 8 },
+  ickyResultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   ickyPlacementLabel: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   ickyPlacementPoints: { fontSize: 18, fontWeight: '800' },
-  ickyRulesBox: { marginHorizontal: 16, marginTop: 10, marginBottom: 16, padding: 12, backgroundColor: colors.surface, borderRadius: 8, borderLeftWidth: 3, borderLeftColor: colors.textMuted },
-  ickyRulesTitle: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', marginBottom: 4 },
-  ickyRulesText: { color: colors.textMuted, fontSize: 12, lineHeight: 16 },
   pickedByContainer: { marginHorizontal: 16, marginBottom: 16, gap: 2 },
   pickerRow: {
     flexDirection: 'row',
