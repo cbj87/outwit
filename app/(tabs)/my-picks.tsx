@@ -131,6 +131,7 @@ export default function MyPicksScreen() {
             points={points}
             isActive={castaway?.is_active ?? true}
             tribeColors={tribeColors}
+            onPress={() => router.push(`/castaways/${castawayId}`)}
           />
         );
       })}
@@ -146,6 +147,7 @@ export default function MyPicksScreen() {
             isActive={castaway?.is_active ?? true}
             isIcky
             tribeColors={tribeColors}
+            onPress={() => router.push(`/castaways/${picks.icky_castaway}`)}
           />
         );
       })()}
@@ -194,17 +196,19 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean; tribeColors: Record<string, string> }) {
+function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors, onPress }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean; tribeColors: Record<string, string>; onPress?: () => void }) {
   const tribeColor = tribeColors[tribe] ?? colors.textMuted;
   return (
-    <Glass style={styles.castawayRow} tintColor={tribeColor + '18'}>
-      <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
-      <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
-      {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
-      <Text style={[styles.castawayPoints, points < 0 && styles.negative]}>
-        {points > 0 ? `+${points}` : points} pts
-      </Text>
-    </Glass>
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+      <Glass style={styles.castawayRow} tintColor={tribeColor + '18'}>
+        <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
+        <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
+        {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
+        <Text style={[styles.castawayPoints, points < 0 && styles.negative]}>
+          {points > 0 ? `+${points}` : points} pts
+        </Text>
+      </Glass>
+    </TouchableOpacity>
   );
 }
 
