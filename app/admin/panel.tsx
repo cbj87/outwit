@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter } from 'expo-router';
-import { useIsCommissioner } from '@/hooks/useIsCommissioner';
+import { useIsCommissioner, useIsGroupCommissioner } from '@/hooks/useIsCommissioner';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 
@@ -36,13 +37,15 @@ const ADMIN_CARDS: AdminCard[] = [
 
 export default function CommissionerPanelScreen() {
   const isCommissioner = useIsCommissioner();
+  const isGroupCommissioner = useIsGroupCommissioner();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
   const { config, refetch } = useSeasonConfig();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [isSaving, setIsSaving] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
-  if (!isCommissioner) return null;
+  if (!isCommissioner && !isGroupCommissioner) return null;
 
   const isRevealed = config?.picks_revealed ?? false;
 
@@ -59,11 +62,12 @@ export default function CommissionerPanelScreen() {
           text: newValue ? 'Reveal Now' : 'Hide',
           style: newValue ? 'destructive' : 'default',
           onPress: async () => {
+            if (!activeGroup) return;
             setIsSaving(true);
             const { error } = await supabase
-              .from('season_config')
+              .from('groups')
               .update({ picks_revealed: newValue })
-              .eq('id', 1);
+              .eq('id', activeGroup.id);
             setIsSaving(false);
             if (error) {
               Alert.alert('Error', error.message);
@@ -78,7 +82,8 @@ export default function CommissionerPanelScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}>
-      {ADMIN_CARDS.map((card) => (
+      {/* Global commissioner tools (episode logging, prophecy, tribes) */}
+      {isCommissioner && ADMIN_CARDS.map((card) => (
         <TouchableOpacity key={card.route} onPress={() => router.push(card.route as any)} activeOpacity={0.75}>
           <Glass style={styles.card} isInteractive>
             <Text style={styles.cardEmoji}>{card.emoji}</Text>
@@ -90,6 +95,12 @@ export default function CommissionerPanelScreen() {
           </Glass>
         </TouchableOpacity>
       ))}
+
+      {activeGroup && (
+        <Text style={styles.sectionLabel}>
+          Group: {activeGroup.name}
+        </Text>
+      )}
 
       <Glass style={styles.revealRow}>
         <View style={styles.revealInfo}>
@@ -129,7 +140,7 @@ export default function CommissionerPanelScreen() {
                   'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ episode_id: null }),
+                body: JSON.stringify({ group_id: activeGroup?.id ?? null }),
               },
             );
             const text = await res.text();
@@ -171,5 +182,6 @@ const styles = StyleSheet.create({
   revealButtonTextActive: { color: colors.success },
   recalcButton: { marginTop: 16, paddingVertical: 14, backgroundColor: colors.primary + '15', borderRadius: 12, alignItems: 'center' },
   recalcButtonDisabled: { opacity: 0.5 },
+  sectionLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginTop: 12 },
   recalcButtonText: { color: colors.primary, fontSize: 15, fontWeight: '700' },
 });

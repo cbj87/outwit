@@ -49,6 +49,9 @@ function AuthGate() {
       <Stack.Screen name="episodes/index" options={{ presentation: 'card', headerShown: true, title: 'Episode Recaps', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
       <Stack.Screen name="episodes/[id]" options={{ presentation: 'card', headerShown: true, title: '', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
       <Stack.Screen name="scoring-rules" options={{ presentation: 'card', headerShown: true, title: 'Scoring Rules', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
+      <Stack.Screen name="groups/create" options={{ presentation: 'modal', headerShown: true, title: 'Create Group', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
+      <Stack.Screen name="groups/join" options={{ presentation: 'modal', headerShown: true, title: 'Join Group', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
+      <Stack.Screen name="groups/[id]/settings" options={{ presentation: 'card', headerShown: true, title: 'Group Settings', headerBackTitle: 'Back', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.textPrimary, headerShadowVisible: false }} />
     </Stack>
   );
 }

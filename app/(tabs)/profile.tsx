@@ -14,11 +14,14 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useIsCommissioner } from '@/hooks/useIsCommissioner';
+import { useIsCommissioner, useIsGroupCommissioner } from '@/hooks/useIsCommissioner';
 import { useAuth } from '@/hooks/useAuth';
+import { useGroups } from '@/hooks/useGroups';
+import { useActiveGroup } from '@/hooks/useActiveGroup';
 import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '@/theme/colors';
+import type { Group } from '@/types';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -46,6 +49,9 @@ function Glass({
 export default function ProfileScreen() {
   const { profile, signOut, refreshProfile } = useAuth();
   const isCommissioner = useIsCommissioner();
+  const isGroupCommissioner = useIsGroupCommissioner();
+  const { data: groups } = useGroups();
+  const { activeGroup, switchGroup } = useActiveGroup();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -243,8 +249,54 @@ export default function ProfileScreen() {
         </Glass>
       )}
 
+      {/* My Groups */}
+      <View style={styles.groupsSection}>
+        <View style={styles.groupsHeader}>
+          <Text style={styles.groupsSectionTitle}>MY GROUPS</Text>
+          <View style={styles.groupsActions}>
+            <TouchableOpacity onPress={() => router.push('/groups/join' as any)} activeOpacity={0.7}>
+              <Text style={styles.groupsActionText}>Join</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/groups/create' as any)} activeOpacity={0.7}>
+              <Text style={styles.groupsActionText}>Create</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        {(groups ?? []).length === 0 ? (
+          <Glass style={styles.groupRow}>
+            <Text style={styles.groupRowEmpty}>No groups yet. Join or create one to get started.</Text>
+          </Glass>
+        ) : (
+          (groups ?? []).map((group: Group) => {
+            const isActive = activeGroup?.id === group.id;
+            return (
+              <TouchableOpacity key={group.id} onPress={() => switchGroup(group)} activeOpacity={0.7}>
+                <Glass style={[styles.groupRow, isActive && styles.groupRowActive]}>
+                  <View style={styles.groupRowLeft}>
+                    <Text style={[styles.groupRowName, isActive && styles.groupRowNameActive]}>{group.name}</Text>
+                    {group.created_by === profile?.id && (
+                      <Text style={styles.groupRowBadge}>Admin</Text>
+                    )}
+                  </View>
+                  <View style={styles.groupRowRight}>
+                    {isActive && <Text style={styles.groupRowCheck}>{'\u2713'}</Text>}
+                    <TouchableOpacity
+                      onPress={() => router.push(`/groups/${group.id}/settings` as any)}
+                      hitSlop={8}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.groupRowSettings}>{'›'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Glass>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </View>
+
       {/* Commissioner Panel Link */}
-      {isCommissioner && (
+      {(isCommissioner || isGroupCommissioner) && (
         <TouchableOpacity
           onPress={() => router.push('/admin/panel' as any)}
           activeOpacity={0.75}
@@ -254,7 +306,7 @@ export default function ProfileScreen() {
             <View style={styles.commissionerContent}>
               <Text style={styles.commissionerTitle}>Commissioner Panel</Text>
               <Text style={styles.commissionerDescription}>
-                Manage episodes, prophecy outcomes, and scores
+                {isCommissioner ? 'Manage episodes, prophecy outcomes, and scores' : 'Manage group picks and scores'}
               </Text>
             </View>
             <Text style={styles.cardChevron}>›</Text>
@@ -355,6 +407,23 @@ const styles = StyleSheet.create({
   commissionerTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   commissionerDescription: { color: colors.textSecondary, fontSize: 13 },
   cardChevron: { color: colors.textMuted, fontSize: 22 },
+
+  // Groups
+  groupsSection: { gap: 8 },
+  groupsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  groupsSectionTitle: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  groupsActions: { flexDirection: 'row', gap: 16 },
+  groupsActionText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  groupRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, padding: 14, overflow: 'hidden' },
+  groupRowActive: { borderWidth: 1, borderColor: colors.primary + '40' },
+  groupRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  groupRowName: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
+  groupRowNameActive: { color: colors.primary, fontWeight: '700' },
+  groupRowBadge: { color: colors.textMuted, fontSize: 10, fontWeight: '700', backgroundColor: colors.border, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  groupRowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  groupRowCheck: { color: colors.primary, fontSize: 16, fontWeight: '800' },
+  groupRowSettings: { color: colors.textMuted, fontSize: 22 },
+  groupRowEmpty: { color: colors.textMuted, fontSize: 14 },
 
   // Sign Out
   signOutButton: {

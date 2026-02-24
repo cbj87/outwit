@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS, EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
@@ -15,17 +16,23 @@ export default function PlayerDetailScreen() {
   const router = useRouter();
   const castawayMap = useCastawayMap();
   const tribeColors = useTribeColors();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
+  const groupId = activeGroup?.id;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['player-picks', id],
+    queryKey: ['player-picks', id, groupId],
     queryFn: async () => {
       const [profileResult, picksResult, answersResult, outcomesResult, cacheResult, trioDetailResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('picks').select('*').eq('player_id', id).maybeSingle(),
         supabase.from('prophecy_answers').select('*').eq('player_id', id),
         supabase.from('prophecy_outcomes').select('*'),
-        supabase.from('score_cache').select('*').eq('player_id', id).maybeSingle(),
-        supabase.from('score_cache_trio_detail').select('*').eq('player_id', id),
+        groupId
+          ? supabase.from('score_cache').select('*').eq('player_id', id).eq('group_id', groupId).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+        groupId
+          ? supabase.from('score_cache_trio_detail').select('*').eq('player_id', id).eq('group_id', groupId)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       const picks = picksResult.data as Picks | null;

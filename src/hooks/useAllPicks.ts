@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import { useSeasonConfig } from './useSeasonConfig';
 import type { Picks, Profile } from '@/types';
 
 export interface PlayerPick {
@@ -18,17 +17,22 @@ export type CastawayPickMap = Map<
   { trio: PlayerPick[]; icky: PlayerPick[] }
 >;
 
-async function fetchAllPicks(): Promise<PlayerPick[]> {
-  const [picksResult, profilesResult] = await Promise.all([
+async function fetchAllPicks(groupId: string): Promise<PlayerPick[]> {
+  // Picks are per-player (no group_id). We fetch all picks then filter to group members.
+  const [picksResult, profilesResult, membersResult] = await Promise.all([
     supabase
       .from('picks')
       .select('player_id, trio_castaway_1, trio_castaway_2, trio_castaway_3, icky_castaway'),
     supabase.from('profiles').select('id, display_name, avatar_url'),
+    supabase.from('group_members').select('user_id').eq('group_id', groupId),
   ]);
 
-  if (picksResult.error || profilesResult.error) throw picksResult.error ?? profilesResult.error;
+  if (picksResult.error || profilesResult.error || membersResult.error) {
+    throw picksResult.error ?? profilesResult.error ?? membersResult.error;
+  }
 
-  const picks = picksResult.data as Picks[];
+  const memberIds = new Set((membersResult.data ?? []).map((m: any) => m.user_id));
+  const picks = (picksResult.data as Picks[]).filter((p) => memberIds.has(p.player_id));
   const profiles = profilesResult.data as Pick<Profile, 'id' | 'display_name' | 'avatar_url'>[];
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
@@ -64,13 +68,14 @@ function buildCastawayPickMap(playerPicks: PlayerPick[]): CastawayPickMap {
 
 export function useAllPicks() {
   const session = useAuthStore((state) => state.session);
-  const { config } = useSeasonConfig();
-  const revealed = config?.picks_revealed ?? false;
+  const activeGroup = useAuthStore((state) => state.activeGroup);
+  const revealed = activeGroup?.picks_revealed ?? false;
+  const groupId = activeGroup?.id;
 
   const query = useQuery({
-    queryKey: ['all-picks'],
-    queryFn: fetchAllPicks,
-    enabled: !!session && revealed,
+    queryKey: ['all-picks', groupId],
+    queryFn: () => fetchAllPicks(groupId!),
+    enabled: !!session && !!groupId && revealed,
     staleTime: 1000 * 60 * 5,
   });
 

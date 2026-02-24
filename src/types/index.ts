@@ -54,8 +54,26 @@ export interface Profile {
   is_commissioner: boolean;
   avatar_url: string | null;
   push_token: string | null;
+  active_group_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
+  picks_deadline: string;
+  picks_revealed: boolean;
+  current_episode: number;
+  created_at: string;
+}
+
+export interface GroupMember {
+  group_id: string;
+  user_id: string;
+  joined_at: string;
 }
 
 export interface SeasonConfig {
@@ -117,6 +135,7 @@ export interface CastawayEvent {
 
 export interface ScoreCache {
   player_id: string;
+  group_id: string;
   trio_points: number;
   icky_points: number;
   prophecy_points: number;
@@ -126,6 +145,7 @@ export interface ScoreCache {
 
 export interface ScoreCacheTrioDetail {
   player_id: string;
+  group_id: string;
   castaway_id: number;
   points_earned: number;
 }

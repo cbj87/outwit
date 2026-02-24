@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 import type { SeasonConfig } from '@/types';
 
 export function useSeasonConfig() {
   const [config, setConfig] = useState<SeasonConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const activeGroup = useAuthStore((state) => state.activeGroup);
 
   function refetch() {
     supabase
@@ -18,7 +20,7 @@ export function useSeasonConfig() {
   }
 
   useEffect(() => {
-    // Initial fetch
+    // Initial fetch of global season config (for season_name)
     supabase
       .from('season_config')
       .select('*')
@@ -29,7 +31,7 @@ export function useSeasonConfig() {
         setIsLoading(false);
       });
 
-    // Realtime subscription for live updates (reveal, episode changes)
+    // Realtime subscription for global season config changes
     const channel = supabase
       .channel('season_config_changes')
       .on(
@@ -46,9 +48,20 @@ export function useSeasonConfig() {
     };
   }, []);
 
-  const isPicksLocked = config
-    ? config.picks_revealed || new Date() > new Date(config.picks_deadline)
+  // Picks locked state is derived from the active group, not global season_config
+  const isPicksLocked = activeGroup
+    ? activeGroup.picks_revealed || new Date() > new Date(activeGroup.picks_deadline)
     : false;
 
-  return { config, isLoading, isPicksLocked, refetch };
+  // Merge group-level overrides into a "config-like" view
+  const effectiveConfig = config && activeGroup
+    ? {
+        ...config,
+        picks_deadline: activeGroup.picks_deadline,
+        picks_revealed: activeGroup.picks_revealed,
+        current_episode: activeGroup.current_episode,
+      }
+    : config;
+
+  return { config: effectiveConfig, isLoading, isPicksLocked, refetch, activeGroup };
 }

@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useMyPicks } from '@/hooks/useMyPicks';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
@@ -27,6 +28,7 @@ function Glass({ style, children, tintColor, isInteractive }: { style?: any; chi
 export default function MyPicksScreen() {
   const router = useRouter();
   const { profile } = useAuth();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
   const { data, isLoading } = useMyPicks();
   const { config, isPicksLocked } = useSeasonConfig();
   const castawayMap = useCastawayMap();
@@ -44,6 +46,18 @@ export default function MyPicksScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!activeGroup) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.emptyTitle}>No Group Selected</Text>
+        <Text style={styles.emptySubtitle}>Join or create a group to manage your picks.</Text>
+        <TouchableOpacity style={styles.ctaButton} onPress={() => router.push('/groups/join' as any)}>
+          <Text style={styles.ctaButtonText}>Join a Group</Text>
+        </TouchableOpacity>
       </View>
     );
   }

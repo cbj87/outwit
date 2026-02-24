@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useAuthStore } from '@/store/authStore';
 import { colors } from '@/theme/colors';
 import type { PlayerScore } from '@/types';
 
@@ -27,11 +29,40 @@ const RANK_COLORS: Record<number, string> = {
   3: '#B87333',
 };
 
+const AVATAR_COLORS = [
+  '#C4402F', // torch red
+  '#2E7D32', // forest green
+  '#1565C0', // ocean blue
+  '#F57F17', // warm amber
+  '#7B1FA2', // purple
+  '#00838F', // teal
+  '#D84315', // deep orange
+  '#4527A0', // deep purple
+  '#00695C', // dark teal
+  '#AD1457', // pink
+  '#1B5E20', // dark green
+  '#0D47A1', // dark blue
+];
+
+function getAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 type RankedEntry = PlayerScore & { rank: number; is_tied: boolean };
 
 function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () => void }) {
   const isTop3 = entry.rank <= 3;
   const rankColor = RANK_COLORS[entry.rank];
+  const initials = (entry.display_name ?? '?')
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={onPress}>
@@ -40,6 +71,13 @@ function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () =
           {entry.rank}{entry.is_tied ? 'T' : ''}
         </Text>
       </View>
+      {entry.avatar_url ? (
+        <Image source={{ uri: entry.avatar_url }} style={styles.avatar} contentFit="cover" />
+      ) : (
+        <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: getAvatarColor(entry.display_name) }]}>
+          <Text style={styles.avatarInitials}>{initials}</Text>
+        </View>
+      )}
       <View style={styles.playerInfo}>
         <Text style={[styles.playerName, entry.rank === 1 && styles.playerNameFirst]}>
           {entry.display_name}
@@ -60,12 +98,13 @@ function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () =
   );
 }
 
-function ListHeader({ config, insets, router }: { config: any; insets: any; router: any }) {
+function ListHeader({ config, insets, router, groupName }: { config: any; insets: any; router: any; groupName?: string }) {
   const hasEpisodes = (config?.current_episode ?? 0) >= 1;
 
   return (
     <View style={{ paddingTop: insets.top + 8, backgroundColor: colors.background }}>
       <Text style={styles.screenTitle}>Leaderboard</Text>
+      {groupName && <Text style={styles.groupName}>{groupName}</Text>}
       <Glass style={styles.episodeBanner}>
         <Text style={styles.episodeLabel}>
           {config?.current_episode ? `Standings Thru Episode ${config.current_episode}` : 'Pre-Season'}
@@ -105,8 +144,9 @@ function ListHeader({ config, insets, router }: { config: any; insets: any; rout
 
 export default function LeaderboardScreen() {
   const router = useRouter();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
   const { config, isLoading: configLoading } = useSeasonConfig();
-  const { entries, isLoading, refetch } = useLeaderboard(config?.picks_revealed ?? false);
+  const { entries, isLoading, refetch } = useLeaderboard(config?.picks_revealed ?? false, activeGroup?.id ?? null);
   const insets = useSafeAreaInsets();
   const picksRevealed = config?.picks_revealed ?? false;
 
@@ -125,12 +165,27 @@ export default function LeaderboardScreen() {
     );
   }
 
+  if (!activeGroup) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.noGroupTitle}>No Group Selected</Text>
+        <Text style={styles.noGroupSubtitle}>Join or create a group to see the leaderboard.</Text>
+        <TouchableOpacity style={styles.noGroupButton} onPress={() => router.push('/groups/join' as any)}>
+          <Text style={styles.noGroupButtonText}>Join a Group</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.noGroupButton, styles.noGroupButtonSecondary]} onPress={() => router.push('/groups/create' as any)}>
+          <Text style={styles.noGroupButtonSecondaryText}>Create a Group</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <FlatList
         data={entries}
         keyExtractor={(item) => item.player_id}
-        ListHeaderComponent={<ListHeader config={config} insets={insets} router={router} />}
+        ListHeaderComponent={<ListHeader config={config} insets={insets} router={router} groupName={activeGroup?.name} />}
         renderItem={({ item }) => (
           <LeaderboardRow
             entry={item}
@@ -146,7 +201,13 @@ export default function LeaderboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, gap: 12 },
+  noGroupTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '700' },
+  noGroupSubtitle: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },
+  noGroupButton: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 32, marginTop: 4 },
+  noGroupButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  noGroupButtonSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+  noGroupButtonSecondaryText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
   screenTitle: {
     color: colors.textPrimary,
     fontSize: 34,
@@ -165,6 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
+  groupName: { color: colors.textSecondary, fontSize: 14, fontWeight: '600', paddingHorizontal: 16, paddingBottom: 8 },
   episodeLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   hiddenNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
   quickLinks: {
@@ -203,6 +265,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rank: { color: colors.textSecondary, fontSize: 14, fontWeight: '700' },
+  avatar: { width: 32, height: 32, borderRadius: 16 },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: { color: '#fff', fontSize: 13, fontWeight: '700' },
   playerInfo: { flex: 1, gap: 2 },
   playerName: { color: colors.textPrimary, fontSize: 16, fontWeight: '600' },
   playerNameFirst: { fontWeight: '800' },
@@ -211,5 +279,5 @@ const styles = StyleSheet.create({
   breakdownLabel: { color: colors.textMuted, fontWeight: '400' },
   totalScore: { color: colors.primary, fontSize: 20, fontWeight: '800', minWidth: 40, textAlign: 'right' },
   chevron: { color: colors.textMuted, fontSize: 20 },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginLeft: 60 },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderGlass, marginLeft: 104 },
 });

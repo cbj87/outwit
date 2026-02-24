@@ -2,10 +2,10 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
-import type { Profile } from '@/types';
+import type { Profile, Group } from '@/types';
 
 export function useAuth() {
-  const { session, profile, isLoading, isCommissioner, setSession, setProfile, setIsLoading, reset } =
+  const { session, profile, isLoading, isCommissioner, activeGroup, isGroupCommissioner, setSession, setProfile, setActiveGroup, setIsLoading, reset } =
     useAuthStore();
   const queryClient = useQueryClient();
 
@@ -44,7 +44,22 @@ export function useAuth() {
       .eq('id', userId)
       .single();
 
-    setProfile(data as Profile | null);
+    const profileData = data as Profile | null;
+    setProfile(profileData);
+
+    // Fetch active group if one is set
+    if (profileData?.active_group_id) {
+      const { data: groupData } = await supabase
+        .from('groups')
+        .select('*')
+        .eq('id', profileData.active_group_id)
+        .single();
+
+      setActiveGroup(groupData as Group | null);
+    } else {
+      setActiveGroup(null);
+    }
+
     setIsLoading(false);
   }
 
@@ -59,5 +74,5 @@ export function useAuth() {
     reset();
   }
 
-  return { session, profile, isLoading, isCommissioner, signOut, refreshProfile };
+  return { session, profile, isLoading, isCommissioner, activeGroup, isGroupCommissioner, signOut, refreshProfile };
 }

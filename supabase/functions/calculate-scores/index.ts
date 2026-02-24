@@ -1,7 +1,9 @@
 // ============================================================
 // calculate-scores Edge Function
 // Invoked by commissioner after finalizing an episode.
-// Recalculates all player scores and upserts score_cache.
+// Recalculates player scores and upserts score_cache.
+// Supports group_id param to scope to a single group,
+// or omit to recalculate all groups.
 // ============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -76,9 +78,14 @@ Deno.serve(async (req) => {
     ?? Deno.env.get('SERVICE_ROLE_KEY');
   const isServiceRole = serviceRoleKey && token === serviceRoleKey;
 
+  // Parse request body
+  const body = await req.json();
+  const requestedGroupId = body?.group_id ?? null;
+
+  let userId: string | null = null;
+
   if (!isServiceRole) {
     // Decode the JWT payload locally (no network call) to get the user ID
-    let userId: string | null = null;
     try {
       const payloadBase64 = token.split('.')[1];
       const payload = JSON.parse(atob(payloadBase64));
@@ -95,53 +102,68 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use service role client to verify user is commissioner
-    const { data: profile, error: profileError } = await supabase
+    // Check authorization: global commissioner OR group commissioner
+    const { data: profile } = await supabase
       .from('profiles')
       .select('is_commissioner')
       .eq('id', userId)
       .single();
 
-    if (profileError || !profile?.is_commissioner) {
-      return new Response(JSON.stringify({ error: 'Forbidden — not a commissioner' }), {
-        status: 403, headers: { 'Content-Type': 'application/json' },
-      });
+    const isGlobalCommissioner = profile?.is_commissioner ?? false;
+
+    if (!isGlobalCommissioner) {
+      // Check if user is commissioner of the requested group
+      if (!requestedGroupId) {
+        return new Response(JSON.stringify({ error: 'Forbidden — group_id required for non-global commissioners' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: group } = await supabase
+        .from('groups')
+        .select('created_by')
+        .eq('id', requestedGroupId)
+        .single();
+
+      if (!group || group.created_by !== userId) {
+        return new Response(JSON.stringify({ error: 'Forbidden — not a commissioner of this group' }), {
+          status: 403, headers: { 'Content-Type': 'application/json' },
+        });
+      }
     }
   }
 
-  // Parse request
-  const body = await req.json();
-  const episodeId = body?.episode_id;
-
   try {
-    // Load all data needed for scoring
+    // Determine which groups to calculate for
+    let groupIds: string[] = [];
+    if (requestedGroupId) {
+      groupIds = [requestedGroupId];
+    } else {
+      // All groups
+      const { data: groups } = await supabase.from('groups').select('id');
+      groupIds = (groups ?? []).map((g: any) => g.id);
+    }
+
+    // Load global data (shared across all groups)
     const [
-      picksResult,
-      answersResult,
       eventsResult,
       episodesResult,
       prophecyOutcomesResult,
       castawaysResult,
     ] = await Promise.all([
-      supabase.from('picks').select('*'),
-      supabase.from('prophecy_answers').select('*'),
       supabase.from('castaway_events').select('*, episodes(episode_number)'),
       supabase.from('episodes').select('id, episode_number, is_merge').eq('is_finalized', true),
       supabase.from('prophecy_outcomes').select('*'),
       supabase.from('castaways').select('id, final_placement, is_active'),
     ]);
 
-    const picks = picksResult.data ?? [];
-    const allAnswers = answersResult.data ?? [];
     const allEvents = eventsResult.data ?? [];
     const prophecyOutcomes = prophecyOutcomesResult.data ?? [];
     const castaways = castawaysResult.data ?? [];
 
     // Build episode number map (episode_id → episode_number)
-    const episodeNumberMap = new Map<number, number>();
     const mergeEpisodeNumbers = new Set<number>();
     (episodesResult.data ?? []).forEach((ep: any) => {
-      episodeNumberMap.set(ep.id, ep.episode_number);
       if (ep.is_merge) mergeEpisodeNumbers.add(ep.episode_number);
     });
 
@@ -184,83 +206,114 @@ Deno.serve(async (req) => {
         .eq('id', fix.id);
     }
 
-    // Calculate scores for each player
-    const scoreCache: any[] = [];
-    const trioDetails: any[] = [];
+    // Load picks and prophecy answers globally (they are per-player, not per-group)
+    const [picksResult, answersResult] = await Promise.all([
+      supabase.from('picks').select('*'),
+      supabase.from('prophecy_answers').select('*'),
+    ]);
 
-    for (const pick of picks) {
-      const playerAnswers = allAnswers.filter((a: any) => a.player_id === pick.player_id);
+    const allPicks = picksResult.data ?? [];
+    const allAnswers = answersResult.data ?? [];
 
-      // Trusted Trio
-      const trioCastawayIds = [pick.trio_castaway_1, pick.trio_castaway_2, pick.trio_castaway_3];
-      let trioPoints = 0;
+    let totalPlayersUpdated = 0;
 
-      for (const castawayId of trioCastawayIds) {
-        const castawayEvents = allEvents.filter((e: any) => e.castaway_id === castawayId);
-        let castawayPoints = 0;
+    // Process each group
+    for (const groupId of groupIds) {
+      // Get group members to filter picks
+      const { data: members } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .eq('group_id', groupId);
 
-        for (const event of castawayEvents) {
-          if (event.event_type === 'survived_episode') {
-            const episodeNum = event.episodes?.episode_number ?? 0;
-            castawayPoints += getSurvivalPoints(episodeNum);
-          } else {
-            castawayPoints += EVENT_SCORES[event.event_type] ?? 0;
+      const memberIds = new Set((members ?? []).map((m: any) => m.user_id));
+      const picks = allPicks.filter((p: any) => memberIds.has(p.player_id));
+
+      // Calculate scores for each player in this group
+      const scoreCache: any[] = [];
+      const trioDetails: any[] = [];
+
+      for (const pick of picks) {
+        const playerAnswers = allAnswers.filter((a: any) => a.player_id === pick.player_id);
+
+        // Trusted Trio
+        const trioCastawayIds = [pick.trio_castaway_1, pick.trio_castaway_2, pick.trio_castaway_3];
+        let trioPoints = 0;
+
+        for (const castawayId of trioCastawayIds) {
+          const castawayEvents = allEvents.filter((e: any) => e.castaway_id === castawayId);
+          let castawayPoints = 0;
+
+          for (const event of castawayEvents) {
+            if (event.event_type === 'survived_episode') {
+              const episodeNum = event.episodes?.episode_number ?? 0;
+              castawayPoints += getSurvivalPoints(episodeNum);
+            } else {
+              castawayPoints += EVENT_SCORES[event.event_type] ?? 0;
+            }
+          }
+
+          trioPoints += castawayPoints;
+          trioDetails.push({
+            player_id: pick.player_id,
+            group_id: groupId,
+            castaway_id: castawayId,
+            points_earned: castawayPoints,
+          });
+        }
+
+        // Icky Pick
+        const ickyPlacement = castawayPlacementMap.get(pick.icky_castaway);
+        const ickyPoints = ickyPlacement ? (ICKY_PICK_SCORES[ickyPlacement] ?? 0) : 0;
+
+        // Prophecy
+        const outcomeMap = new Map(prophecyOutcomes.map((o: any) => [o.question_id, o.outcome]));
+        let prophecyPoints = 0;
+        for (const answer of playerAnswers) {
+          const outcome = outcomeMap.get(answer.question_id);
+          if (outcome !== null && outcome !== undefined) {
+            if (answer.answer === outcome) {
+              prophecyPoints += PROPHECY_POINTS[answer.question_id] ?? 0;
+            }
           }
         }
 
-        trioPoints += castawayPoints;
-        trioDetails.push({
+        scoreCache.push({
           player_id: pick.player_id,
-          castaway_id: castawayId,
-          points_earned: castawayPoints,
+          group_id: groupId,
+          trio_points: trioPoints,
+          icky_points: ickyPoints,
+          prophecy_points: prophecyPoints,
+          total_points: trioPoints + ickyPoints + prophecyPoints,
+          last_calculated_at: new Date().toISOString(),
         });
       }
 
-      // Icky Pick
-      const ickyPlacement = castawayPlacementMap.get(pick.icky_castaway);
-      const ickyPoints = ickyPlacement ? (ICKY_PICK_SCORES[ickyPlacement] ?? 0) : 0;
+      // Upsert score cache for this group
+      if (scoreCache.length > 0) {
+        const { error: cacheError } = await supabase
+          .from('score_cache')
+          .upsert(scoreCache, { onConflict: 'player_id,group_id' });
 
-      // Prophecy
-      const outcomeMap = new Map(prophecyOutcomes.map((o: any) => [o.question_id, o.outcome]));
-      let prophecyPoints = 0;
-      for (const answer of playerAnswers) {
-        const outcome = outcomeMap.get(answer.question_id);
-        if (outcome !== null && outcome !== undefined) {
-          if (answer.answer === outcome) {
-            prophecyPoints += PROPHECY_POINTS[answer.question_id] ?? 0;
-          }
-        }
+        if (cacheError) throw cacheError;
       }
 
-      scoreCache.push({
-        player_id: pick.player_id,
-        trio_points: trioPoints,
-        icky_points: ickyPoints,
-        prophecy_points: prophecyPoints,
-        total_points: trioPoints + ickyPoints + prophecyPoints,
-        last_calculated_at: new Date().toISOString(),
-      });
+      // Upsert trio detail for this group
+      if (trioDetails.length > 0) {
+        const { error: detailError } = await supabase
+          .from('score_cache_trio_detail')
+          .upsert(trioDetails, { onConflict: 'player_id,castaway_id,group_id' });
+
+        if (detailError) throw detailError;
+      }
+
+      totalPlayersUpdated += scoreCache.length;
     }
 
-    // Upsert score cache
-    const { error: cacheError } = await supabase
-      .from('score_cache')
-      .upsert(scoreCache, { onConflict: 'player_id' });
-
-    if (cacheError) throw cacheError;
-
-    // Upsert trio detail
-    if (trioDetails.length > 0) {
-      const { error: detailError } = await supabase
-        .from('score_cache_trio_detail')
-        .upsert(trioDetails, { onConflict: 'player_id,castaway_id' });
-
-      if (detailError) throw detailError;
-    }
-
-    // TODO: Send push notifications to all players
-
-    return new Response(JSON.stringify({ success: true, players_updated: scoreCache.length }), {
+    return new Response(JSON.stringify({
+      success: true,
+      players_updated: totalPlayersUpdated,
+      groups_processed: groupIds.length,
+    }), {
       headers: { 'Content-Type': 'application/json' },
       status: 200,
     });

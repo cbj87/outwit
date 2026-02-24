@@ -14,13 +14,15 @@ interface MyPicksData {
   totalPoints: number;
 }
 
-async function fetchMyPicks(userId: string): Promise<MyPicksData> {
+async function fetchMyPicks(userId: string, groupId: string): Promise<MyPicksData> {
   const [picksResult, answersResult, outcomesResult, trioDetailResult, cacheResult] = await Promise.all([
+    // Picks and prophecy answers are per-player (no group_id)
     supabase.from('picks').select('*').eq('player_id', userId).maybeSingle(),
     supabase.from('prophecy_answers').select('*').eq('player_id', userId),
     supabase.from('prophecy_outcomes').select('*'),
-    supabase.from('score_cache_trio_detail').select('*').eq('player_id', userId),
-    supabase.from('score_cache').select('*').eq('player_id', userId).maybeSingle(),
+    // Scores are per-player-per-group
+    supabase.from('score_cache_trio_detail').select('*').eq('player_id', userId).eq('group_id', groupId),
+    supabase.from('score_cache').select('*').eq('player_id', userId).eq('group_id', groupId).maybeSingle(),
   ]);
 
   return {
@@ -37,11 +39,12 @@ async function fetchMyPicks(userId: string): Promise<MyPicksData> {
 
 export function useMyPicks() {
   const userId = useAuthStore((state) => state.session?.user.id);
+  const groupId = useAuthStore((state) => state.activeGroup?.id);
 
   return useQuery({
-    queryKey: ['my-picks', userId],
-    queryFn: () => fetchMyPicks(userId!),
-    enabled: !!userId,
+    queryKey: ['my-picks', userId, groupId],
+    queryFn: () => fetchMyPicks(userId!, groupId!),
+    enabled: !!userId && !!groupId,
     staleTime: 1000 * 30, // 30 seconds
   });
 }
