@@ -159,6 +159,23 @@ export interface ScoreCacheTrioDetail {
   points_earned: number;
 }
 
+export interface ScoreSnapshot {
+  player_id: string;
+  group_id: string;
+  episode_number: number;
+  trio_points: number;
+  icky_points: number;
+  prophecy_points: number;
+  total_points: number;
+  created_at: string;
+}
+
+export interface EpisodeSeenStatus {
+  player_id: string;
+  episode_number: number;
+  seen_at: string;
+}
+
 // ---- Derived / UI types ----
 
 export interface PlayerScore {
