@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
   // Parse request body
   const body = await req.json();
   const requestedGroupId = body?.group_id ?? null;
+  const requestedEpisodeId = body?.episode_id ?? null;
 
   let userId: string | null = null;
 
@@ -215,6 +216,18 @@ Deno.serve(async (req) => {
     const allPicks = picksResult.data ?? [];
     const allAnswers = answersResult.data ?? [];
 
+    // Determine current episode number for snapshot
+    let snapshotEpisodeNumber: number | null = null;
+    if (requestedEpisodeId) {
+      const ep = (episodesResult.data ?? []).find((e: any) => e.id === requestedEpisodeId);
+      if (ep) snapshotEpisodeNumber = ep.episode_number;
+    }
+    if (!snapshotEpisodeNumber) {
+      // Fall back to highest finalized episode
+      snapshotEpisodeNumber = (episodesResult.data ?? [])
+        .reduce((max: number, e: any) => Math.max(max, e.episode_number), 0) || null;
+    }
+
     let totalPlayersUpdated = 0;
 
     // Process each group
@@ -304,6 +317,25 @@ Deno.serve(async (req) => {
           .upsert(trioDetails, { onConflict: 'player_id,castaway_id,group_id' });
 
         if (detailError) throw detailError;
+      }
+
+      // Save score snapshot for this episode (spoiler-safe leaderboard)
+      if (snapshotEpisodeNumber && scoreCache.length > 0) {
+        const snapshots = scoreCache.map((sc: any) => ({
+          player_id: sc.player_id,
+          group_id: groupId,
+          episode_number: snapshotEpisodeNumber,
+          trio_points: sc.trio_points,
+          icky_points: sc.icky_points,
+          prophecy_points: sc.prophecy_points,
+          total_points: sc.total_points,
+        }));
+
+        const { error: snapError } = await supabase
+          .from('score_snapshots')
+          .upsert(snapshots, { onConflict: 'player_id,group_id,episode_number' });
+
+        if (snapError) throw snapError;
       }
 
       totalPlayersUpdated += scoreCache.length;

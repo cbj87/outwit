@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useEpisodeSeenStatus } from '@/hooks/useEpisodeSeenStatus';
 import { useAuthStore } from '@/store/authStore';
 import { colors } from '@/theme/colors';
 import type { PlayerScore } from '@/types';
@@ -98,17 +99,75 @@ function LeaderboardRow({ entry, onPress }: { entry: RankedEntry; onPress?: () =
   );
 }
 
-function ListHeader({ config, insets, router, groupName }: { config: any; insets: any; router: any; groupName?: string }) {
-  const hasEpisodes = (config?.current_episode ?? 0) >= 1;
+function SpoilerBanner({
+  currentEpisode,
+  maxSeenEpisode,
+  onMarkSeen,
+  isMarking,
+}: {
+  currentEpisode: number;
+  maxSeenEpisode: number;
+  onMarkSeen: () => void;
+  isMarking: boolean;
+}) {
+  const unseenCount = currentEpisode - maxSeenEpisode;
+
+  return (
+    <View style={styles.spoilerBanner}>
+      <View style={styles.spoilerTextContainer}>
+        <Text style={styles.spoilerTitle}>
+          {unseenCount === 1
+            ? `Episode ${currentEpisode} is available`
+            : `${unseenCount} new episodes available`}
+        </Text>
+        <Text style={styles.spoilerSubtitle}>
+          Showing scores thru Episode {maxSeenEpisode || 'Pre-Season'}
+        </Text>
+      </View>
+      <TouchableOpacity
+        style={styles.spoilerButton}
+        onPress={onMarkSeen}
+        disabled={isMarking}
+        activeOpacity={0.7}
+      >
+        {isMarking ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.spoilerButtonText}>
+            {unseenCount === 1 ? "I've seen it" : 'Catch up'}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ListHeader({
+  displayedEpisode,
+  config,
+  insets,
+  router,
+  groupName,
+  spoilerBanner,
+}: {
+  displayedEpisode: number;
+  config: any;
+  insets: any;
+  router: any;
+  groupName?: string;
+  spoilerBanner: React.ReactNode | null;
+}) {
+  const hasEpisodes = displayedEpisode >= 1;
 
   return (
     <View style={{ paddingTop: insets.top + 8, backgroundColor: colors.background }}>
       <Text style={styles.screenTitle}>Leaderboard</Text>
       {groupName && <Text style={styles.groupName}>{groupName}</Text>}
+      {spoilerBanner}
       <Glass style={styles.episodeBanner}>
         <View style={styles.bannerLeft}>
           <Text style={styles.episodeLabel}>
-            {config?.current_episode ? `Standings Thru Episode ${config.current_episode}` : 'Pre-Season'}
+            {displayedEpisode ? `Standings Thru Episode ${displayedEpisode}` : 'Pre-Season'}
           </Text>
           {!config?.picks_revealed && (
             <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
@@ -154,11 +213,30 @@ function ListHeader({ config, insets, router, groupName }: { config: any; insets
 
 export default function LeaderboardScreen() {
   const router = useRouter();
+  const profile = useAuthStore((state) => state.profile);
   const activeGroup = useAuthStore((state) => state.activeGroup);
   const { config, isLoading: configLoading } = useSeasonConfig();
-  const { entries, isLoading, refetch } = useLeaderboard(config?.picks_revealed ?? false, activeGroup?.id ?? null);
-  const insets = useSafeAreaInsets();
+  const {
+    maxSeenEpisode,
+    isLoading: seenLoading,
+    markAllSeenThrough,
+  } = useEpisodeSeenStatus();
+  const [isMarking, setIsMarking] = useState(false);
+
+  const spoilerEnabled = profile?.spoiler_protection ?? false;
+  const currentEpisode = config?.current_episode ?? 0;
   const picksRevealed = config?.picks_revealed ?? false;
+
+  const { entries, isLoading, displayedEpisode, refetch } = useLeaderboard({
+    picksRevealed,
+    groupId: activeGroup?.id ?? null,
+    currentEpisode,
+    // Only engage snapshot logic when spoiler protection is on
+    maxSeenEpisode: spoilerEnabled ? maxSeenEpisode : 0,
+    seenLoading: spoilerEnabled ? seenLoading : false,
+  });
+
+  const insets = useSafeAreaInsets();
 
   // Refetch when tab gains focus so profile changes (name, avatar) show immediately
   useFocusEffect(
@@ -167,7 +245,14 @@ export default function LeaderboardScreen() {
     }, [refetch]),
   );
 
-  if (isLoading || configLoading) {
+  const handleMarkSeen = useCallback(async () => {
+    setIsMarking(true);
+    await markAllSeenThrough(currentEpisode);
+    // Refetch will happen automatically via the useEffect dependency on maxSeenEpisode
+    setIsMarking(false);
+  }, [markAllSeenThrough, currentEpisode]);
+
+  if (isLoading || configLoading || seenLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -190,12 +275,33 @@ export default function LeaderboardScreen() {
     );
   }
 
+  // Show spoiler banner when spoiler protection is on and user is behind
+  const hasUnseenEpisodes = spoilerEnabled && maxSeenEpisode < currentEpisode && currentEpisode > 0;
+
+  const spoilerBanner = hasUnseenEpisodes ? (
+    <SpoilerBanner
+      currentEpisode={currentEpisode}
+      maxSeenEpisode={maxSeenEpisode}
+      onMarkSeen={handleMarkSeen}
+      isMarking={isMarking}
+    />
+  ) : null;
+
   return (
     <View style={styles.container}>
       <FlatList
         data={entries}
         keyExtractor={(item) => item.player_id}
-        ListHeaderComponent={<ListHeader config={config} insets={insets} router={router} groupName={activeGroup?.name} />}
+        ListHeaderComponent={
+          <ListHeader
+            displayedEpisode={displayedEpisode}
+            config={config}
+            insets={insets}
+            router={router}
+            groupName={activeGroup?.name}
+            spoilerBanner={spoilerBanner}
+          />
+        }
         renderItem={({ item }) => (
           <LeaderboardRow
             entry={item}
@@ -262,6 +368,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  // Spoiler banner
+  spoilerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning + '40',
+  },
+  spoilerTextContainer: { flex: 1, gap: 2, marginRight: 12 },
+  spoilerTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  spoilerSubtitle: { color: colors.textSecondary, fontSize: 12 },
+  spoilerButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  spoilerButtonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   list: { paddingBottom: 16 },
   row: {
     flexDirection: 'row',

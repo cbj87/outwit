@@ -55,6 +55,7 @@ export interface Profile {
   avatar_url: string | null;
   push_token: string | null;
   active_group_id: string | null;
+  spoiler_protection: boolean;
   survivor_bio: Record<string, string> | null;
   created_at: string;
   updated_at: string;
@@ -157,6 +158,23 @@ export interface ScoreCacheTrioDetail {
   group_id: string;
   castaway_id: number;
   points_earned: number;
+}
+
+export interface ScoreSnapshot {
+  player_id: string;
+  group_id: string;
+  episode_number: number;
+  trio_points: number;
+  icky_points: number;
+  prophecy_points: number;
+  total_points: number;
+  created_at: string;
+}
+
+export interface EpisodeSeenStatus {
+  player_id: string;
+  episode_number: number;
+  seen_at: string;
 }
 
 // ---- Derived / UI types ----
