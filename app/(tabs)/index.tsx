@@ -106,12 +106,22 @@ function ListHeader({ config, insets, router, groupName }: { config: any; insets
       <Text style={styles.screenTitle}>Leaderboard</Text>
       {groupName && <Text style={styles.groupName}>{groupName}</Text>}
       <Glass style={styles.episodeBanner}>
-        <Text style={styles.episodeLabel}>
-          {config?.current_episode ? `Standings Thru Episode ${config.current_episode}` : 'Pre-Season'}
-        </Text>
-        {!config?.picks_revealed && (
-          <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
-        )}
+        <View style={styles.bannerLeft}>
+          <Text style={styles.episodeLabel}>
+            {config?.current_episode ? `Standings Thru Episode ${config.current_episode}` : 'Pre-Season'}
+          </Text>
+          {!config?.picks_revealed && (
+            <Text style={styles.hiddenNote}>Picks hidden until reveal</Text>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.bannerRight}
+          activeOpacity={0.7}
+          onPress={() => router.push('/players/gallery' as any)}
+        >
+          <Text style={styles.bannerLinkText}>Player Bios</Text>
+          <Text style={styles.bannerChevron}>{'›'}</Text>
+        </TouchableOpacity>
       </Glass>
       <View style={styles.quickLinks}>
         {hasEpisodes && (
@@ -227,6 +237,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   groupName: { color: colors.textSecondary, fontSize: 14, fontWeight: '600', paddingHorizontal: 16, paddingBottom: 8 },
+  bannerLeft: { flex: 1, gap: 2 },
+  bannerRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: 1 },
+  bannerLinkText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+  bannerChevron: { color: colors.primary, fontSize: 18, fontWeight: '600' },
   episodeLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   hiddenNote: { color: colors.textMuted, fontSize: 11, fontStyle: 'italic' },
   quickLinks: {

@@ -55,8 +55,17 @@ export interface Profile {
   avatar_url: string | null;
   push_token: string | null;
   active_group_id: string | null;
+  survivor_bio: Record<string, string> | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface BioQuestion {
+  id: number;
+  key: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
 }
 
 export interface Group {

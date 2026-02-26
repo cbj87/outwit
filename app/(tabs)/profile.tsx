@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsCommissioner, useIsGroupCommissioner } from '@/hooks/useIsCommissioner';
+import { useBioQuestions } from '@/hooks/useBioQuestions';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroups } from '@/hooks/useGroups';
 import { useActiveGroup } from '@/hooks/useActiveGroup';
@@ -51,6 +52,7 @@ export default function ProfileScreen() {
   const isCommissioner = useIsCommissioner();
   const isGroupCommissioner = useIsGroupCommissioner();
   const { data: groups } = useGroups();
+  const { questions: bioQuestions } = useBioQuestions();
   const { activeGroup, switchGroup } = useActiveGroup();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -249,6 +251,28 @@ export default function ProfileScreen() {
         </Glass>
       )}
 
+      {/* Survivor Bio */}
+      <TouchableOpacity
+        onPress={() => router.push('/profile/bio' as any)}
+        activeOpacity={0.75}
+      >
+        <Glass style={styles.bioCard} isInteractive>
+          <Text style={styles.bioEmoji}>🏝️</Text>
+          <View style={styles.bioContent}>
+            <Text style={styles.bioTitle}>Survivor Bio</Text>
+            <Text style={styles.bioDescription}>
+              {(() => {
+                const filled = bioQuestions.filter((q) => (profile?.survivor_bio as any)?.[q.key]?.trim()).length;
+                return filled > 0
+                  ? `${filled} of ${bioQuestions.length} answered`
+                  : 'Tell everyone about your Survivor game';
+              })()}
+            </Text>
+          </View>
+          <Text style={styles.cardChevron}>›</Text>
+        </Glass>
+      </TouchableOpacity>
+
       {/* My Groups */}
       <View style={styles.groupsSection}>
         <View style={styles.groupsHeader}>
@@ -392,6 +416,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: 10,
   },
+
+  // Survivor Bio
+  bioCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    overflow: 'hidden',
+  },
+  bioEmoji: { fontSize: 28 },
+  bioContent: { flex: 1, gap: 4 },
+  bioTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  bioDescription: { color: colors.textSecondary, fontSize: 13 },
 
   // Commissioner
   commissionerCard: {
