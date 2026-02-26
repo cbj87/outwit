@@ -55,6 +55,7 @@ export interface Profile {
   avatar_url: string | null;
   push_token: string | null;
   active_group_id: string | null;
+  spoiler_protection: boolean;
   survivor_bio: Record<string, string> | null;
   created_at: string;
   updated_at: string;

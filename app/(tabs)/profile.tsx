@@ -8,6 +8,7 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -19,6 +20,8 @@ import { useBioQuestions } from '@/hooks/useBioQuestions';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroups } from '@/hooks/useGroups';
 import { useActiveGroup } from '@/hooks/useActiveGroup';
+import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useEpisodeSeenStatus } from '@/hooks/useEpisodeSeenStatus';
 import { supabase } from '@/lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '@/theme/colors';
@@ -69,6 +72,9 @@ export default function ProfileScreen() {
     }
   }, [profile?.display_name]);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isTogglingSpoiler, setIsTogglingSpoiler] = useState(false);
+  const { config } = useSeasonConfig();
+  const { markAllSeenThrough } = useEpisodeSeenStatus();
 
   const hasNameChanged = displayName.trim() !== (profile?.display_name ?? '');
 
@@ -159,6 +165,39 @@ export default function ProfileScreen() {
       Alert.alert('Upload failed', e.message ?? 'Could not upload avatar.');
     } finally {
       setIsUploadingAvatar(false);
+    }
+  }
+
+  async function handleToggleSpoilerProtection(enabled: boolean) {
+    if (!profile) return;
+    setIsTogglingSpoiler(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ spoiler_protection: enabled, updated_at: new Date().toISOString() })
+        .eq('id', profile.id);
+
+      if (error) throw error;
+
+      if (enabled) {
+        // Seed all finalized episodes as "seen" so user starts caught up
+        const currentEp = config?.current_episode ?? 0;
+        if (currentEp > 0) {
+          await markAllSeenThrough(currentEp);
+        }
+      } else {
+        // Clear all seen status rows
+        await supabase
+          .from('episode_seen_status')
+          .delete()
+          .eq('player_id', profile.id);
+      }
+
+      await refreshProfile();
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Could not update setting.');
+    } finally {
+      setIsTogglingSpoiler(false);
     }
   }
 
@@ -272,6 +311,28 @@ export default function ProfileScreen() {
           <Text style={styles.cardChevron}>›</Text>
         </Glass>
       </TouchableOpacity>
+
+      {/* Spoiler Protection */}
+      <Glass style={styles.spoilerCard}>
+        <View style={styles.spoilerLeft}>
+          <Text style={styles.spoilerTitle}>Spoiler Protection</Text>
+          <Text style={styles.spoilerDescription}>
+            {profile?.spoiler_protection
+              ? 'Scores are hidden until you mark each episode as seen'
+              : 'Enable to avoid seeing scores from episodes you haven\'t watched'}
+          </Text>
+        </View>
+        {isTogglingSpoiler ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Switch
+            value={profile?.spoiler_protection ?? false}
+            onValueChange={handleToggleSpoilerProtection}
+            trackColor={{ false: colors.border, true: colors.primary + '60' }}
+            thumbColor={profile?.spoiler_protection ? colors.primary : colors.textMuted}
+          />
+        )}
+      </Glass>
 
       {/* My Groups */}
       <View style={styles.groupsSection}>
@@ -430,6 +491,20 @@ const styles = StyleSheet.create({
   bioContent: { flex: 1, gap: 4 },
   bioTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   bioDescription: { color: colors.textSecondary, fontSize: 13 },
+
+  // Spoiler Protection
+  spoilerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    overflow: 'hidden',
+  },
+  spoilerLeft: { flex: 1, gap: 4 },
+  spoilerTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  spoilerDescription: { color: colors.textSecondary, fontSize: 13 },
 
   // Commissioner
   commissionerCard: {

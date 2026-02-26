@@ -213,6 +213,7 @@ function ListHeader({
 
 export default function LeaderboardScreen() {
   const router = useRouter();
+  const profile = useAuthStore((state) => state.profile);
   const activeGroup = useAuthStore((state) => state.activeGroup);
   const { config, isLoading: configLoading } = useSeasonConfig();
   const {
@@ -222,6 +223,7 @@ export default function LeaderboardScreen() {
   } = useEpisodeSeenStatus();
   const [isMarking, setIsMarking] = useState(false);
 
+  const spoilerEnabled = profile?.spoiler_protection ?? false;
   const currentEpisode = config?.current_episode ?? 0;
   const picksRevealed = config?.picks_revealed ?? false;
 
@@ -229,8 +231,9 @@ export default function LeaderboardScreen() {
     picksRevealed,
     groupId: activeGroup?.id ?? null,
     currentEpisode,
-    maxSeenEpisode,
-    seenLoading,
+    // Only engage snapshot logic when spoiler protection is on
+    maxSeenEpisode: spoilerEnabled ? maxSeenEpisode : 0,
+    seenLoading: spoilerEnabled ? seenLoading : false,
   });
 
   const insets = useSafeAreaInsets();
@@ -272,10 +275,8 @@ export default function LeaderboardScreen() {
     );
   }
 
-  // Show spoiler banner when user hasn't seen the latest episode(s)
-  // Only show when maxSeenEpisode > 0 (user has engaged with the feature)
-  // and they're behind the current episode.
-  const hasUnseenEpisodes = maxSeenEpisode > 0 && maxSeenEpisode < currentEpisode;
+  // Show spoiler banner when spoiler protection is on and user is behind
+  const hasUnseenEpisodes = spoilerEnabled && maxSeenEpisode < currentEpisode && currentEpisode > 0;
 
   const spoilerBanner = hasUnseenEpisodes ? (
     <SpoilerBanner
