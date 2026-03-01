@@ -77,13 +77,30 @@ export function useLeaderboard({
       .filter((p) => memberIds.has(p.id));
     const picksData = picksResult.data as Picks[];
 
-    // If we tried snapshots but got no rows, fall back to score_cache
+    // If we tried snapshots but got no rows, find the closest earlier
+    // snapshot instead of falling back to live scores (which would spoil).
     let finalScores = scores;
     let epShown = needsSnapshot ? maxSeen : curEp;
     if (needsSnapshot && scores.length === 0) {
-      const fallback = await supabase.from('score_cache').select('*').eq('group_id', gid);
-      finalScores = (fallback.data ?? []) as ScoreCache[];
-      epShown = curEp;
+      const earlier = await supabase
+        .from('score_snapshots')
+        .select('*')
+        .eq('group_id', gid)
+        .lt('episode_number', maxSeen)
+        .order('episode_number', { ascending: false })
+        .limit(50); // enough to cover all players in a group
+
+      if (earlier.data && earlier.data.length > 0) {
+        const latestEp = (earlier.data[0] as ScoreSnapshot).episode_number;
+        finalScores = (earlier.data as ScoreSnapshot[]).filter(
+          (s) => s.episode_number === latestEp,
+        );
+        epShown = latestEp;
+      } else {
+        // No snapshots exist at all — show zeroed scores (pre-season)
+        finalScores = [];
+        epShown = 0;
+      }
     }
 
     const picksMap = new Map(picksData.map((p) => [p.player_id, p]));
