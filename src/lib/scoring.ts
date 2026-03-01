@@ -94,6 +94,7 @@ export function sortAndRankScores<
   });
 
   // Assign ranks and tied flags
+  let currentRank = 1;
   return sorted.map((player, index, arr) => {
     const prev = arr[index - 1];
     const next = arr[index + 1];
@@ -112,11 +113,13 @@ export function sortAndRankScores<
         next.icky_points === player.icky_points
       : false;
 
-    const rank = isSameAsPrev ? (prev as any).rank : index + 1;
+    if (!isSameAsPrev) {
+      currentRank = index + 1;
+    }
 
     return {
       ...player,
-      rank,
+      rank: currentRank,
       is_tied: isSameAsPrev || isSameAsNext,
     };
   });
