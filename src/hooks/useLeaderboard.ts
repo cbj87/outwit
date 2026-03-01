@@ -14,6 +14,8 @@ interface UseLeaderboardOptions {
   maxSeenEpisode: number;
   /** True while episode seen data is still loading. */
   seenLoading?: boolean;
+  /** Whether spoiler protection is enabled for this user. */
+  spoilerEnabled?: boolean;
 }
 
 export function useLeaderboard({
@@ -22,6 +24,7 @@ export function useLeaderboard({
   currentEpisode,
   maxSeenEpisode,
   seenLoading,
+  spoilerEnabled = false,
 }: UseLeaderboardOptions) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,12 +39,15 @@ export function useLeaderboard({
   currentEpisodeRef.current = currentEpisode;
   const maxSeenRef = useRef(maxSeenEpisode);
   maxSeenRef.current = maxSeenEpisode;
+  const spoilerRef = useRef(spoilerEnabled);
+  spoilerRef.current = spoilerEnabled;
 
   const fetchLeaderboard = useCallback(async () => {
     const revealed = picksRevealedRef.current;
     const gid = groupIdRef.current;
     const curEp = currentEpisodeRef.current;
     const maxSeen = maxSeenRef.current;
+    const spoiler = spoilerRef.current;
 
     if (!gid) {
       setEntries([]);
@@ -50,8 +56,9 @@ export function useLeaderboard({
     }
 
     // Decide whether to use snapshots or live score_cache.
-    // Use snapshots when: user has seen episodes, hasn't caught up, and snapshots may exist.
-    const needsSnapshot = maxSeen > 0 && maxSeen < curEp;
+    // When spoiler protection is on and the user is behind (or hasn't watched any),
+    // use snapshots to avoid revealing scores from unseen episodes.
+    const needsSnapshot = spoiler && maxSeen < curEp && curEp > 0;
 
     // Fetch group members, scores, and profiles in parallel
     const [membersResult, scoresResult, profilesResult, picksResult] = await Promise.all([
@@ -155,7 +162,7 @@ export function useLeaderboard({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [picksRevealed, groupId, maxSeenEpisode, seenLoading]);
+  }, [picksRevealed, groupId, maxSeenEpisode, seenLoading, spoilerEnabled]);
 
   return { entries, isLoading, displayedEpisode, refetch: fetchLeaderboard };
 }

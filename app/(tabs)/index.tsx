@@ -215,6 +215,7 @@ export default function LeaderboardScreen() {
   const router = useRouter();
   const profile = useAuthStore((state) => state.profile);
   const activeGroup = useAuthStore((state) => state.activeGroup);
+  const authLoading = useAuthStore((state) => state.isLoading);
   const { config, isLoading: configLoading } = useSeasonConfig();
   const {
     maxSeenEpisode,
@@ -231,7 +232,7 @@ export default function LeaderboardScreen() {
     picksRevealed,
     groupId: activeGroup?.id ?? null,
     currentEpisode,
-    // Only engage snapshot logic when spoiler protection is on
+    spoilerEnabled,
     maxSeenEpisode: spoilerEnabled ? maxSeenEpisode : 0,
     seenLoading: spoilerEnabled ? seenLoading : false,
   });
@@ -256,7 +257,7 @@ export default function LeaderboardScreen() {
     }
   }, [markAllSeenThrough, currentEpisode]);
 
-  if (isLoading || configLoading || seenLoading) {
+  if (authLoading || isLoading || configLoading || seenLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />

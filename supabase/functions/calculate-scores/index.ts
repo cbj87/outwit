@@ -341,6 +341,16 @@ Deno.serve(async (req) => {
       totalPlayersUpdated += scoreCache.length;
     }
 
+    // Update groups.current_episode so leaderboards reflect the latest finalized episode.
+    // This runs with the service role key, bypassing RLS restrictions.
+    if (snapshotEpisodeNumber) {
+      await supabase
+        .from('groups')
+        .update({ current_episode: snapshotEpisodeNumber })
+        .in('id', groupIds)
+        .lt('current_episode', snapshotEpisodeNumber);
+    }
+
     return new Response(JSON.stringify({
       success: true,
       players_updated: totalPlayersUpdated,

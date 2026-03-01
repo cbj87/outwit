@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { colors } from '@/theme/colors';
@@ -11,6 +12,7 @@ import type { ProphecyOutcome } from '@/types';
 type OutcomeState = boolean | null;
 
 export default function ProphecyScreen() {
+  const queryClient = useQueryClient();
   const [outcomes, setOutcomes] = useState<Record<number, OutcomeState>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,12 +52,41 @@ export default function ProphecyScreen() {
       .from('prophecy_outcomes')
       .upsert(updates, { onConflict: 'question_id' });
 
-    setIsSaving(false);
-
     if (error) {
+      setIsSaving(false);
       Alert.alert('Error', error.message);
-    } else {
-      Alert.alert('Saved', 'Prophecy outcomes updated.');
+      return;
+    }
+
+    // Recalculate scores so prophecy points are reflected immediately
+    try {
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) throw refreshError;
+
+      const accessToken = refreshData.session?.access_token;
+      const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/calculate-scores`;
+      const fnRes = await fetch(fnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!fnRes.ok) {
+        const body = await fnRes.text();
+        throw new Error(`Score recalculation failed (${fnRes.status}): ${body}`);
+      }
+
+      queryClient.invalidateQueries();
+      Alert.alert('Saved', 'Prophecy outcomes updated and scores recalculated.');
+    } catch (e: any) {
+      queryClient.invalidateQueries();
+      Alert.alert('Saved with Warning', `Outcomes saved, but score recalculation failed: ${e.message}. Scores will update on next episode finalization.`);
+    } finally {
+      setIsSaving(false);
     }
   }
 

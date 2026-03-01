@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useCastawaysByTribe } from '@/hooks/useCastaways';
 import { EVENT_LABELS } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
+import { useAuthStore } from '@/store/authStore';
 import { colors } from '@/theme/colors';
 import type { Castaway, EventType } from '@/types';
 
@@ -31,6 +32,8 @@ export default function EpisodeScreen() {
   const insets = useSafeAreaInsets();
   const { byTribe, castaways, isLoading: castawaysLoading } = useCastawaysByTribe();
   const tribeColors = useTribeColors();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
+  const setActiveGroup = useAuthStore((state) => state.setActiveGroup);
   const [episodeNumber, setEpisodeNumber] = useState('');
   const [episodeId, setEpisodeId] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -395,12 +398,15 @@ export default function EpisodeScreen() {
                 }
               }
 
+              const newEpisode = parseInt(episodeNumber, 10);
+
               await supabase
                 .from('season_config')
-                .update({ current_episode: parseInt(episodeNumber, 10) })
+                .update({ current_episode: newEpisode })
                 .eq('id', 1);
 
               // Refresh session then call Edge Function with raw fetch for full error details
+              // (The Edge Function also updates groups.current_episode via service role)
               const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
               if (refreshError) throw new Error(`Session expired — please sign in again.`);
 
@@ -421,6 +427,12 @@ export default function EpisodeScreen() {
               }
 
               queryClient.invalidateQueries();
+
+              // Refresh active group in Zustand so leaderboard sees updated current_episode
+              if (activeGroup) {
+                setActiveGroup({ ...activeGroup, current_episode: newEpisode });
+              }
+
               Alert.alert('Episode Finalized', 'Scores have been updated for all players.', [
                 { text: 'OK', onPress: () => router.back() },
               ]);
