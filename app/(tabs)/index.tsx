@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -247,9 +247,13 @@ export default function LeaderboardScreen() {
 
   const handleMarkSeen = useCallback(async () => {
     setIsMarking(true);
-    await markAllSeenThrough(currentEpisode);
-    // Refetch will happen automatically via the useEffect dependency on maxSeenEpisode
-    setIsMarking(false);
+    try {
+      await markAllSeenThrough(currentEpisode);
+    } catch {
+      Alert.alert('Error', 'Could not update episode status. Please try again.');
+    } finally {
+      setIsMarking(false);
+    }
   }, [markAllSeenThrough, currentEpisode]);
 
   if (isLoading || configLoading || seenLoading) {

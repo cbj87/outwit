@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 
@@ -9,80 +10,110 @@ import { useAuthStore } from '@/store/authStore';
 export function useEpisodeSeenStatus() {
   const session = useAuthStore((state) => state.session);
   const userId = session?.user.id ?? null;
-  const [seenEpisodes, setSeenEpisodes] = useState<Set<number>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchSeen = useCallback(async () => {
-    if (!userId) {
-      setSeenEpisodes(new Set());
-      setIsLoading(false);
-      return;
-    }
+  const queryKey = ['episode-seen', userId];
 
-    const { data } = await supabase
-      .from('episode_seen_status')
-      .select('episode_number')
-      .eq('player_id', userId);
+  const query = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('episode_seen_status')
+        .select('episode_number')
+        .eq('player_id', userId!);
+      if (error) throw error;
+      return (data ?? []).map((r: { episode_number: number }) => r.episode_number);
+    },
+    enabled: !!userId,
+    staleTime: Infinity, // only changes via our own mutations
+  });
 
-    setSeenEpisodes(new Set((data ?? []).map((r: any) => r.episode_number)));
-    setIsLoading(false);
-  }, [userId]);
+  const seenEpisodes = useMemo(() => new Set(query.data ?? []), [query.data]);
+  const maxSeenEpisode = useMemo(
+    () => (seenEpisodes.size > 0 ? Math.max(...seenEpisodes) : 0),
+    [seenEpisodes],
+  );
 
-  useEffect(() => {
-    fetchSeen();
-  }, [fetchSeen]);
+  const markOneMutation = useMutation({
+    mutationFn: async (episodeNumber: number) => {
+      if (!userId) return;
+      const { error } = await supabase
+        .from('episode_seen_status')
+        .upsert(
+          { player_id: userId, episode_number: episodeNumber },
+          { onConflict: 'player_id,episode_number' },
+        );
+      if (error) throw error;
+    },
+    onMutate: async (episodeNumber: number) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<number[]>(queryKey);
+      queryClient.setQueryData<number[]>(queryKey, (old) => {
+        const set = new Set(old ?? []);
+        set.add(episodeNumber);
+        return [...set];
+      });
+      return { previous };
+    },
+    onError: (_err, _ep, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+  });
 
-  /** The highest episode number the user has seen (0 if none). */
-  const maxSeenEpisode = seenEpisodes.size > 0 ? Math.max(...seenEpisodes) : 0;
+  const markThroughMutation = useMutation({
+    mutationFn: async (throughEpisode: number) => {
+      if (!userId || throughEpisode < 1) return;
+      const current = queryClient.getQueryData<number[]>(queryKey) ?? [];
+      const currentSet = new Set(current);
+      const rows: { player_id: string; episode_number: number }[] = [];
+      for (let ep = 1; ep <= throughEpisode; ep++) {
+        if (!currentSet.has(ep)) {
+          rows.push({ player_id: userId, episode_number: ep });
+        }
+      }
+      if (rows.length === 0) return;
+      const { error } = await supabase
+        .from('episode_seen_status')
+        .upsert(rows, { onConflict: 'player_id,episode_number' });
+      if (error) throw error;
+    },
+    onMutate: async (throughEpisode: number) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<number[]>(queryKey);
+      queryClient.setQueryData<number[]>(queryKey, (old) => {
+        const set = new Set(old ?? []);
+        for (let ep = 1; ep <= throughEpisode; ep++) set.add(ep);
+        return [...set];
+      });
+      return { previous };
+    },
+    onError: (_err, _through, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+  });
 
   /** Mark a single episode as seen (inserts row). */
-  const markEpisodeSeen = useCallback(async (episodeNumber: number) => {
-    if (!userId) return;
-
-    const { error } = await supabase
-      .from('episode_seen_status')
-      .upsert(
-        { player_id: userId, episode_number: episodeNumber },
-        { onConflict: 'player_id,episode_number' },
-      );
-
-    if (!error) {
-      setSeenEpisodes((prev) => new Set([...prev, episodeNumber]));
-    }
-  }, [userId]);
+  const markEpisodeSeen = useCallback(
+    async (episodeNumber: number) => {
+      await markOneMutation.mutateAsync(episodeNumber);
+    },
+    [markOneMutation],
+  );
 
   /** Mark all episodes up through a given number as seen. */
-  const markAllSeenThrough = useCallback(async (throughEpisode: number) => {
-    if (!userId || throughEpisode < 1) return;
-
-    const rows = [];
-    for (let ep = 1; ep <= throughEpisode; ep++) {
-      if (!seenEpisodes.has(ep)) {
-        rows.push({ player_id: userId, episode_number: ep });
-      }
-    }
-
-    if (rows.length === 0) return;
-
-    const { error } = await supabase
-      .from('episode_seen_status')
-      .upsert(rows, { onConflict: 'player_id,episode_number' });
-
-    if (!error) {
-      setSeenEpisodes((prev) => {
-        const next = new Set(prev);
-        for (let ep = 1; ep <= throughEpisode; ep++) next.add(ep);
-        return next;
-      });
-    }
-  }, [userId, seenEpisodes]);
+  const markAllSeenThrough = useCallback(
+    async (throughEpisode: number) => {
+      await markThroughMutation.mutateAsync(throughEpisode);
+    },
+    [markThroughMutation],
+  );
 
   return {
     seenEpisodes,
     maxSeenEpisode,
-    isLoading,
+    isLoading: query.isLoading,
     markEpisodeSeen,
     markAllSeenThrough,
-    refetch: fetchSeen,
+    refetch: query.refetch,
   };
 }
