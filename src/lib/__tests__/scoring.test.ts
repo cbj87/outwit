@@ -26,7 +26,7 @@ function makeAnswer(questionId: number, answer: boolean): ProphecyAnswer {
 }
 
 function makeOutcome(questionId: number, outcome: boolean | null): ProphecyOutcome {
-  return { question_id: questionId, outcome, resolved_at: outcome !== null ? new Date().toISOString() : null, updated_by: null };
+  return { question_id: questionId, outcome, resolved_at: outcome !== null ? new Date().toISOString() : null, updated_by: null, episode_number: null };
 }
 
 function makePlayer(name: string, scores: { trio?: number; icky?: number; prophecy?: number; total?: number }) {

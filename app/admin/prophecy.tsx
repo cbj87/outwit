@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { colors } from '@/theme/colors';
 import type { ProphecyOutcome } from '@/types';
@@ -13,7 +14,11 @@ type OutcomeState = boolean | null;
 
 export default function ProphecyScreen() {
   const queryClient = useQueryClient();
+  const activeGroup = useAuthStore((state) => state.activeGroup);
+  const currentEpisode = activeGroup?.current_episode ?? 0;
   const [outcomes, setOutcomes] = useState<Record<number, OutcomeState>>({});
+  /** Tracks the episode_number already saved for each resolved outcome. */
+  const [savedEpisodeNumbers, setSavedEpisodeNumbers] = useState<Record<number, number | null>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -23,10 +28,13 @@ export default function ProphecyScreen() {
       .select('*')
       .then(({ data }) => {
         const map: Record<number, OutcomeState> = {};
+        const epMap: Record<number, number | null> = {};
         (data as ProphecyOutcome[] ?? []).forEach((o) => {
           map[o.question_id] = o.outcome;
+          epMap[o.question_id] = o.episode_number ?? null;
         });
         setOutcomes(map);
+        setSavedEpisodeNumbers(epMap);
         setIsLoading(false);
       });
   }, []);
@@ -42,11 +50,18 @@ export default function ProphecyScreen() {
 
   async function handleSave() {
     setIsSaving(true);
-    const updates = Object.entries(outcomes).map(([qId, outcome]) => ({
-      question_id: parseInt(qId, 10),
-      outcome,
-      resolved_at: outcome !== null ? new Date().toISOString() : null,
-    }));
+    const updates = Object.entries(outcomes).map(([qId, outcome]) => {
+      const qIdNum = parseInt(qId, 10);
+      return {
+        question_id: qIdNum,
+        outcome,
+        resolved_at: outcome !== null ? new Date().toISOString() : null,
+        // Preserve existing episode_number if already set; otherwise use current episode
+        episode_number: outcome !== null
+          ? (savedEpisodeNumbers[qIdNum] ?? (currentEpisode || null))
+          : null,
+      };
+    });
 
     const { error } = await supabase
       .from('prophecy_outcomes')

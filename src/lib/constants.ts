@@ -111,7 +111,7 @@ export const CASTAWAY_TRIBES = {
 export const EVENT_LABELS: Record<string, string> = {
   survived_episode: 'Survived Episode',
   idol_found: 'Found Idol',
-  advantage_found: 'Found Advantage',
+  advantage_found: 'Found or Earned Advantage',
   individual_immunity_win: 'Won Individual Immunity',
   individual_reward_win: 'Won Individual Reward',
   idol_played_correct: 'Played Idol (Correctly)',

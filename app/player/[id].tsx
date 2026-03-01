@@ -9,7 +9,16 @@ import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS, EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
 import { colors } from '@/theme/colors';
-import type { Picks, ProphecyAnswer, ProphecyOutcome, ScoreCache, ScoreCacheTrioDetail, Profile, Tribe, EventType, CastawayEvent } from '@/types';
+import type { Picks, ProphecyAnswer, ProphecyOutcome, ScoreCache, ScoreCacheTrioDetail, ScoreSnapshot, Profile, Tribe, EventType, CastawayEvent } from '@/types';
+
+const ICKY_PLACEMENT_LABELS: Record<string, string> = {
+  first_boot: 'First Boot',
+  pre_merge: 'Pre-Merge Boot',
+  jury: 'Jury Member',
+  '3rd': '3rd Place',
+  runner_up: 'Runner-Up',
+  winner: 'Winner',
+};
 
 export default function PlayerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,7 +31,7 @@ export default function PlayerDetailScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['player-picks', id, groupId],
     queryFn: async () => {
-      const [profileResult, picksResult, answersResult, outcomesResult, cacheResult, trioDetailResult] = await Promise.all([
+      const [profileResult, picksResult, answersResult, outcomesResult, cacheResult, trioDetailResult, snapshotResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('picks').select('*').eq('player_id', id).maybeSingle(),
         supabase.from('prophecy_answers').select('*').eq('player_id', id),
@@ -32,6 +41,9 @@ export default function PlayerDetailScreen() {
           : Promise.resolve({ data: null, error: null }),
         groupId
           ? supabase.from('score_cache_trio_detail').select('*').eq('player_id', id).eq('group_id', groupId)
+          : Promise.resolve({ data: [], error: null }),
+        groupId
+          ? supabase.from('score_snapshots').select('*').eq('player_id', id).eq('group_id', groupId).order('episode_number', { ascending: true })
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -57,37 +69,83 @@ export default function PlayerDetailScreen() {
         scores: cacheResult.data as ScoreCache | null,
         trioDetail: (trioDetailResult.data ?? []) as ScoreCacheTrioDetail[],
         trioEvents,
+        snapshots: (snapshotResult.data ?? []) as ScoreSnapshot[],
       };
     },
     enabled: !!id,
   });
 
-  const trioEvents = data?.trioEvents ?? [];
-
-  // Build per-episode breakdown for the player's trio (must be before early returns)
+  // Build per-episode breakdown using score_snapshots for deltas (must be before early returns)
   const episodeBreakdown = useMemo(() => {
-    if (!trioEvents.length) return [];
+    const snapshots = data?.snapshots ?? [];
+    const trioEvts = data?.trioEvents ?? [];
+    const prophecyOuts = data?.prophecyOutcomes ?? [];
+    const prophecyAns = data?.prophecyAnswers ?? [];
+    const picks = data?.picks;
 
-    // Group events by episode
-    const byEpisode = new Map<number, { episodeNumber: number; events: typeof trioEvents }>();
-    for (const event of trioEvents) {
+    if (snapshots.length === 0 && trioEvts.length === 0) return [];
+
+    // Compute per-episode deltas from cumulative snapshots
+    const deltas = snapshots.map((snap, i) => {
+      const prev = i > 0 ? snapshots[i - 1] : { trio_points: 0, icky_points: 0, prophecy_points: 0, total_points: 0 };
+      return {
+        episodeNumber: snap.episode_number,
+        trioDelta: snap.trio_points - prev.trio_points,
+        ickyDelta: snap.icky_points - prev.icky_points,
+        prophecyDelta: snap.prophecy_points - prev.prophecy_points,
+        totalDelta: snap.total_points - prev.total_points,
+      };
+    });
+
+    // Group trio events by episode
+    type TrioEvent = (typeof trioEvts)[number];
+    const trioByEpisode = new Map<number, TrioEvent[]>();
+    for (const event of trioEvts) {
       const epNum = event.episodes?.episode_number ?? 0;
-      if (!byEpisode.has(epNum)) byEpisode.set(epNum, { episodeNumber: epNum, events: [] });
-      byEpisode.get(epNum)!.events.push(event);
+      if (epNum === 0) continue;
+      if (!trioByEpisode.has(epNum)) trioByEpisode.set(epNum, []);
+      trioByEpisode.get(epNum)!.push(event);
     }
 
-    return Array.from(byEpisode.values())
-      .sort((a, b) => a.episodeNumber - b.episodeNumber)
-      .map(({ episodeNumber, events }) => {
-        // Group events by castaway within this episode
-        const byCastaway = new Map<number, typeof trioEvents>();
-        for (const event of events) {
+    // Group prophecy outcomes by episode_number
+    const pAnswerMap = new Map(prophecyAns.map((a) => [a.question_id, a.answer]));
+    const prophecyByEp = new Map<number, { correctCount: number; totalResolved: number }>();
+    for (const o of prophecyOuts) {
+      if (o.outcome !== null && o.episode_number) {
+        if (!prophecyByEp.has(o.episode_number)) {
+          prophecyByEp.set(o.episode_number, { correctCount: 0, totalResolved: 0 });
+        }
+        const entry = prophecyByEp.get(o.episode_number)!;
+        entry.totalResolved++;
+        if (pAnswerMap.get(o.question_id) === o.outcome) entry.correctCount++;
+      }
+    }
+
+    // Icky castaway info
+    const ickyCW = picks ? castawayMap.get(picks.icky_castaway) : null;
+    const ickyName = ickyCW?.name ?? '?';
+    const ickyPlace = ickyCW?.final_placement ?? null;
+
+    // Collect all episode numbers that have data
+    const allEpisodes = new Set<number>();
+    deltas.forEach((d) => allEpisodes.add(d.episodeNumber));
+    trioByEpisode.forEach((_, ep) => allEpisodes.add(ep));
+
+    const deltaMap = new Map(deltas.map((d) => [d.episodeNumber, d]));
+
+    return Array.from(allEpisodes)
+      .sort((a, b) => a - b)
+      .map((episodeNumber) => {
+        const delta = deltaMap.get(episodeNumber);
+        const trioEventsForEp = trioByEpisode.get(episodeNumber) ?? [];
+
+        // Build trio castaway breakdown (existing logic)
+        const byCastaway = new Map<number, TrioEvent[]>();
+        for (const event of trioEventsForEp) {
           if (!byCastaway.has(event.castaway_id)) byCastaway.set(event.castaway_id, []);
           byCastaway.get(event.castaway_id)!.push(event);
         }
-
-        let totalPoints = 0;
-        const castawayBreakdowns = Array.from(byCastaway.entries()).map(([castawayId, evts]) => {
+        const trioBreakdowns = Array.from(byCastaway.entries()).map(([castawayId, evts]) => {
           let pts = 0;
           const details: { label: string; points: number }[] = [];
           for (const e of evts) {
@@ -101,13 +159,28 @@ export default function PlayerDetailScreen() {
               details.push({ label: EVENT_LABELS[e.event_type] ?? e.event_type, points: ep });
             }
           }
-          totalPoints += pts;
           return { castawayId, points: pts, details };
         });
 
-        return { episodeNumber, totalPoints, castawayBreakdowns };
-      });
-  }, [trioEvents]);
+        const trioDelta = delta?.trioDelta ?? trioBreakdowns.reduce((sum, c) => sum + c.points, 0);
+        const ickyDelta = delta?.ickyDelta ?? 0;
+        const prophecyDelta = delta?.prophecyDelta ?? 0;
+        const totalDelta = delta?.totalDelta ?? (trioDelta + ickyDelta + prophecyDelta);
+        const pInfo = prophecyByEp.get(episodeNumber) ?? null;
+
+        return {
+          episodeNumber,
+          totalDelta,
+          trioDelta,
+          ickyDelta,
+          prophecyDelta,
+          trioBreakdowns,
+          ickyInfo: ickyDelta !== 0 ? { name: ickyName, placement: ickyPlace } : null,
+          prophecyInfo: prophecyDelta !== 0 ? (pInfo ?? { correctCount: 0, totalResolved: 0 }) : null,
+        };
+      })
+      .filter((ep) => ep.totalDelta !== 0 || ep.trioBreakdowns.length > 0);
+  }, [data, castawayMap]);
 
   if (isLoading || !data) {
     return (
@@ -136,6 +209,19 @@ export default function PlayerDetailScreen() {
   const ickyPoints = scores?.icky_points ?? 0;
   const prophecyPoints = scores?.prophecy_points ?? 0;
   const totalPoints = scores?.total_points ?? 0;
+
+  const ickyCastaway = castawayMap.get(picks.icky_castaway);
+  const ickyPlacement = ickyCastaway?.final_placement ?? null;
+
+  let prophecyCorrectCount = 0;
+  let prophecyTotalResolved = 0;
+  for (const q of PROPHECY_QUESTIONS) {
+    const outcome = outcomesMap.get(q.id);
+    if (outcome !== null && outcome !== undefined) {
+      prophecyTotalResolved++;
+      if (answersMap.get(q.id) === outcome) prophecyCorrectCount++;
+    }
+  }
 
   const initials = (profile.display_name ?? '?')
     .split(' ')
@@ -175,9 +261,14 @@ export default function PlayerDetailScreen() {
         </View>
       </View>
 
-      {/* Episode Breakdown (collapsible) */}
+      {/* Score Breakdown (collapsible) */}
       {episodeBreakdown.length > 0 && (
-        <EpisodeBreakdownSection episodes={episodeBreakdown} totalPoints={trioPoints} castawayMap={castawayMap} tribeColors={tribeColors} />
+        <EpisodeBreakdownSection
+          episodes={episodeBreakdown}
+          totalPoints={totalPoints}
+          castawayMap={castawayMap}
+          tribeColors={tribeColors}
+        />
       )}
 
       {/* Trusted Trio */}
@@ -281,22 +372,37 @@ function CastawayRow({ name, tribe, points, isActive, isIcky, onPress, tribeColo
 
 interface EpisodeBD {
   episodeNumber: number;
-  totalPoints: number;
-  castawayBreakdowns: {
+  totalDelta: number;
+  trioDelta: number;
+  ickyDelta: number;
+  prophecyDelta: number;
+  trioBreakdowns: {
     castawayId: number;
     points: number;
     details: { label: string; points: number }[];
   }[];
+  ickyInfo: { name: string; placement: string | null } | null;
+  prophecyInfo: { correctCount: number; totalResolved: number } | null;
 }
 
-function EpisodeBreakdownSection({ episodes, totalPoints, castawayMap, tribeColors }: { episodes: EpisodeBD[]; totalPoints: number; castawayMap: Map<number, import('@/types').Castaway>; tribeColors: Record<string, string> }) {
+function EpisodeBreakdownSection({
+  episodes,
+  totalPoints,
+  castawayMap,
+  tribeColors,
+}: {
+  episodes: EpisodeBD[];
+  totalPoints: number;
+  castawayMap: Map<number, import('@/types').Castaway>;
+  tribeColors: Record<string, string>;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <TouchableOpacity style={styles.sectionHeaderTappable} onPress={() => setOpen(!open)} activeOpacity={0.6}>
         <View style={styles.sectionHeaderLeft}>
-          <Text style={styles.sectionTitle}>Episode Breakdown</Text>
+          <Text style={styles.sectionTitle}>Score Breakdown</Text>
           <Text style={styles.chevron}>{open ? '\u25B2' : '\u25BC'}</Text>
         </View>
         <Text style={[styles.sectionPoints, totalPoints < 0 && styles.negative]}>{totalPoints} pts</Text>
@@ -318,47 +424,90 @@ function EpisodeRow({ episode, castawayMap, tribeColors }: { episode: EpisodeBD;
         <View style={styles.episodeRight}>
           <Text style={[
             styles.episodePoints,
-            episode.totalPoints > 0 && styles.positive,
-            episode.totalPoints < 0 && styles.negative,
+            episode.totalDelta > 0 && styles.positive,
+            episode.totalDelta < 0 && styles.negative,
           ]}>
-            {episode.totalPoints > 0 ? `+${episode.totalPoints}` : episode.totalPoints} pts
+            {episode.totalDelta > 0 ? `+${episode.totalDelta}` : episode.totalDelta} pts
           </Text>
           <Text style={styles.chevron}>{expanded ? '\u25B2' : '\u25BC'}</Text>
         </View>
       </TouchableOpacity>
       {expanded && (
         <View style={styles.episodeDetail}>
-          {episode.castawayBreakdowns.map(({ castawayId, points, details }) => {
-            const castaway = castawayMap.get(castawayId);
-            const tribeColor = castaway?.original_tribe ? (tribeColors[castaway.original_tribe] ?? colors.textMuted) : colors.textMuted;
-            return (
-              <View key={castawayId} style={styles.epCastawayBlock}>
-                <View style={styles.epCastawayHeader}>
-                  <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
-                  <Text style={styles.epCastawayName}>{castaway?.name ?? '?'}</Text>
-                  <Text style={[
-                    styles.epCastawayPts,
-                    points > 0 && styles.positive,
-                    points < 0 && styles.negative,
-                  ]}>
-                    {points > 0 ? `+${points}` : points}
+          {/* Trio breakdown */}
+          {episode.trioBreakdowns.length > 0 && (
+            <View style={styles.epCategoryBlock}>
+              <View style={styles.epCategoryHeader}>
+                <Text style={styles.epCategoryLabel}>Trusted Trio</Text>
+                <Text style={[styles.epCategoryPts, episode.trioDelta > 0 && styles.positive, episode.trioDelta < 0 && styles.negative]}>
+                  {episode.trioDelta > 0 ? `+${episode.trioDelta}` : episode.trioDelta}
+                </Text>
+              </View>
+              {episode.trioBreakdowns.map(({ castawayId, points, details }) => {
+                const castaway = castawayMap.get(castawayId);
+                const tribeColor = castaway?.original_tribe ? (tribeColors[castaway.original_tribe] ?? colors.textMuted) : colors.textMuted;
+                return (
+                  <View key={castawayId} style={styles.epCastawayBlock}>
+                    <View style={styles.epCastawayHeader}>
+                      <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
+                      <Text style={styles.epCastawayName}>{castaway?.name ?? '?'}</Text>
+                      <Text style={[styles.epCastawayPts, points > 0 && styles.positive, points < 0 && styles.negative]}>
+                        {points > 0 ? `+${points}` : points}
+                      </Text>
+                    </View>
+                    {details.map((d, i) => (
+                      <View key={i} style={styles.epEventRow}>
+                        <Text style={styles.epEventLabel}>{d.label}</Text>
+                        <Text style={[styles.epEventPts, d.points > 0 && styles.positive, d.points < 0 && styles.negative]}>
+                          {d.points > 0 ? `+${d.points}` : d.points}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          {/* Icky pick */}
+          {episode.ickyInfo && (
+            <View style={styles.epCategoryBlock}>
+              <View style={styles.epCategoryHeader}>
+                <Text style={styles.epCategoryLabel}>Icky Pick</Text>
+                <Text style={[styles.epCategoryPts, episode.ickyDelta > 0 && styles.positive, episode.ickyDelta < 0 && styles.negative]}>
+                  {episode.ickyDelta > 0 ? `+${episode.ickyDelta}` : episode.ickyDelta}
+                </Text>
+              </View>
+              <View style={styles.epEventRow}>
+                <Text style={styles.epEventLabel}>
+                  {episode.ickyInfo.name}{episode.ickyInfo.placement ? ` — ${ICKY_PLACEMENT_LABELS[episode.ickyInfo.placement] ?? episode.ickyInfo.placement}` : ''}
+                </Text>
+                <Text style={[styles.epEventPts, episode.ickyDelta > 0 && styles.positive, episode.ickyDelta < 0 && styles.negative]}>
+                  {episode.ickyDelta > 0 ? `+${episode.ickyDelta}` : episode.ickyDelta}
+                </Text>
+              </View>
+            </View>
+          )}
+          {/* Prophecy */}
+          {episode.prophecyInfo && (
+            <View style={styles.epCategoryBlock}>
+              <View style={styles.epCategoryHeader}>
+                <Text style={styles.epCategoryLabel}>Prophecy</Text>
+                <Text style={[styles.epCategoryPts, episode.prophecyDelta > 0 && styles.positive]}>
+                  {episode.prophecyDelta > 0 ? `+${episode.prophecyDelta}` : episode.prophecyDelta}
+                </Text>
+              </View>
+              {episode.prophecyInfo.totalResolved > 0 && (
+                <View style={styles.epEventRow}>
+                  <Text style={styles.epEventLabel}>
+                    {episode.prophecyInfo.correctCount} of {episode.prophecyInfo.totalResolved} resolved correct
+                  </Text>
+                  <Text style={[styles.epEventPts, episode.prophecyDelta > 0 && styles.positive]}>
+                    {episode.prophecyDelta > 0 ? `+${episode.prophecyDelta}` : episode.prophecyDelta}
                   </Text>
                 </View>
-                {details.map((d, i) => (
-                  <View key={i} style={styles.epEventRow}>
-                    <Text style={styles.epEventLabel}>{d.label}</Text>
-                    <Text style={[
-                      styles.epEventPts,
-                      d.points > 0 && styles.positive,
-                      d.points < 0 && styles.negative,
-                    ]}>
-                      {d.points > 0 ? `+${d.points}` : d.points}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
+              )}
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -416,7 +565,11 @@ const styles = StyleSheet.create({
   episodeRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   episodePoints: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
   chevron: { color: colors.textMuted, fontSize: 10 },
-  episodeDetail: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, gap: 10 },
+  episodeDetail: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, gap: 12 },
+  epCategoryBlock: { gap: 4 },
+  epCategoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 2 },
+  epCategoryLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  epCategoryPts: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
   epCastawayBlock: { gap: 2 },
   epCastawayHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
   epCastawayName: { flex: 1, color: colors.textPrimary, fontSize: 14, fontWeight: '600' },

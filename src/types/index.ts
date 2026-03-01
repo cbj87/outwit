@@ -117,6 +117,7 @@ export interface ProphecyOutcome {
   outcome: boolean | null;
   resolved_at: string | null;
   updated_by: string | null;
+  episode_number: number | null;
 }
 
 export interface ProphecyQuestion {
