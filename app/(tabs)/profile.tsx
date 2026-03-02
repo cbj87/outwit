@@ -326,7 +326,7 @@ export default function ProfileScreen() {
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
           <Switch
-            value={profile?.spoiler_protection ?? false}
+            value={profile?.spoiler_protection ?? true}
             onValueChange={handleToggleSpoilerProtection}
             trackColor={{ false: colors.border, true: colors.primary + '60' }}
             thumbColor={profile?.spoiler_protection ? colors.primary : colors.textMuted}

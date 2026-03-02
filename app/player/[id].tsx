@@ -1,13 +1,17 @@
-import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useCallback, useState, useMemo } from 'react';
+import { Alert, View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/useAuth';
+import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useEpisodeSeenStatus } from '@/hooks/useEpisodeSeenStatus';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS, EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
+import { SpoilerBanner } from '@/components/ui/SpoilerBanner';
 import { colors } from '@/theme/colors';
 import type { Picks, ProphecyAnswer, ProphecyOutcome, ScoreCache, ScoreCacheTrioDetail, ScoreSnapshot, Profile, Tribe, EventType, CastawayEvent } from '@/types';
 
@@ -28,18 +32,50 @@ export default function PlayerDetailScreen() {
   const activeGroup = useAuthStore((state) => state.activeGroup);
   const groupId = activeGroup?.id;
 
+  // Spoiler protection
+  const { profile: viewerProfile } = useAuth();
+  const { config } = useSeasonConfig();
+  const {
+    maxSeenEpisode,
+    isLoading: seenLoading,
+    markAllSeenThrough,
+  } = useEpisodeSeenStatus();
+  const [isMarking, setIsMarking] = useState(false);
+
+  const spoilerEnabled = viewerProfile?.spoiler_protection ?? true;
+  const currentEpisode = config?.current_episode ?? 0;
+  const needsSnapshot = spoilerEnabled && maxSeenEpisode < currentEpisode && currentEpisode > 0;
+
+  const handleMarkSeen = useCallback(async () => {
+    setIsMarking(true);
+    try {
+      await markAllSeenThrough(currentEpisode);
+    } catch {
+      Alert.alert('Error', 'Could not update episode status. Please try again.');
+    } finally {
+      setIsMarking(false);
+    }
+  }, [markAllSeenThrough, currentEpisode]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['player-picks', id, groupId],
+    queryKey: ['player-picks', id, groupId, needsSnapshot ? maxSeenEpisode : 'live'],
     queryFn: async () => {
       const [profileResult, picksResult, answersResult, outcomesResult, cacheResult, trioDetailResult, snapshotResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('picks').select('*').eq('player_id', id).maybeSingle(),
         supabase.from('prophecy_answers').select('*').eq('player_id', id),
         supabase.from('prophecy_outcomes').select('*'),
+        // Score: use snapshot when behind, live when caught up
         groupId
-          ? supabase.from('score_cache').select('*').eq('player_id', id).eq('group_id', groupId).maybeSingle()
+          ? (needsSnapshot
+              ? supabase.from('score_snapshots').select('*')
+                  .eq('player_id', id).eq('group_id', groupId)
+                  .eq('episode_number', maxSeenEpisode).maybeSingle()
+              : supabase.from('score_cache').select('*')
+                  .eq('player_id', id).eq('group_id', groupId).maybeSingle())
           : Promise.resolve({ data: null, error: null }),
-        groupId
+        // Skip trio detail in snapshot mode
+        groupId && !needsSnapshot
           ? supabase.from('score_cache_trio_detail').select('*').eq('player_id', id).eq('group_id', groupId)
           : Promise.resolve({ data: [], error: null }),
         groupId
@@ -72,7 +108,7 @@ export default function PlayerDetailScreen() {
         snapshots: (snapshotResult.data ?? []) as ScoreSnapshot[],
       };
     },
-    enabled: !!id,
+    enabled: !!id && !seenLoading,
   });
 
   // Build per-episode breakdown using score_snapshots for deltas (must be before early returns)
@@ -133,7 +169,7 @@ export default function PlayerDetailScreen() {
 
     const deltaMap = new Map(deltas.map((d) => [d.episodeNumber, d]));
 
-    return Array.from(allEpisodes)
+    const allBreakdown = Array.from(allEpisodes)
       .sort((a, b) => a - b)
       .map((episodeNumber) => {
         const delta = deltaMap.get(episodeNumber);
@@ -180,9 +216,15 @@ export default function PlayerDetailScreen() {
         };
       })
       .filter((ep) => ep.totalDelta !== 0 || ep.trioBreakdowns.length > 0);
-  }, [data, castawayMap]);
 
-  if (isLoading || !data) {
+    // When spoiler-protected, only show episodes through maxSeenEpisode
+    if (needsSnapshot) {
+      return allBreakdown.filter((ep) => ep.episodeNumber <= maxSeenEpisode);
+    }
+    return allBreakdown;
+  }, [data, castawayMap, needsSnapshot, maxSeenEpisode]);
+
+  if (isLoading || !data || seenLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -203,7 +245,17 @@ export default function PlayerDetailScreen() {
   const trio = [picks.trio_castaway_1, picks.trio_castaway_2, picks.trio_castaway_3] as const;
 
   const answersMap = new Map(prophecyAnswers.map((a) => [a.question_id, a.answer]));
-  const outcomesMap = new Map(prophecyOutcomes.map((o) => [o.question_id, o.outcome]));
+  // Filter prophecy outcomes to only seen episodes when spoiler-filtered
+  const outcomesMap = new Map(
+    prophecyOutcomes
+      .filter((o) => {
+        if (needsSnapshot && o.episode_number !== null) {
+          return o.episode_number <= maxSeenEpisode;
+        }
+        return true;
+      })
+      .map((o) => [o.question_id, o.outcome]),
+  );
   const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
   const trioPoints = scores?.trio_points ?? 0;
   const ickyPoints = scores?.icky_points ?? 0;
@@ -229,6 +281,8 @@ export default function PlayerDetailScreen() {
     .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  const hasUnseenEpisodes = spoilerEnabled && maxSeenEpisode < currentEpisode && currentEpisode > 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -261,6 +315,16 @@ export default function PlayerDetailScreen() {
         </View>
       </View>
 
+      {/* Spoiler banner */}
+      {hasUnseenEpisodes && (
+        <SpoilerBanner
+          currentEpisode={currentEpisode}
+          maxSeenEpisode={maxSeenEpisode}
+          onMarkSeen={handleMarkSeen}
+          isMarking={isMarking}
+        />
+      )}
+
       {/* Score Breakdown (collapsible) */}
       {episodeBreakdown.length > 0 && (
         <EpisodeBreakdownSection
@@ -275,14 +339,14 @@ export default function PlayerDetailScreen() {
       <SectionHeader title="Trusted Trio" points={trioPoints} />
       {trio.map((castawayId) => {
         const castaway = castawayMap.get(castawayId);
-        const points = trioDetailMap.get(castawayId) ?? 0;
+        const points = needsSnapshot ? null : (trioDetailMap.get(castawayId) ?? 0);
         return (
           <CastawayRow
             key={castawayId}
             name={castaway?.name ?? '?'}
             tribe={castaway?.original_tribe}
             points={points}
-            isActive={castaway?.is_active ?? true}
+            isActive={needsSnapshot ? true : (castaway?.is_active ?? true)}
             tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${castawayId}`)}
           />
@@ -298,7 +362,7 @@ export default function PlayerDetailScreen() {
             name={castaway?.name ?? '?'}
             tribe={castaway?.original_tribe}
             points={ickyPoints}
-            isActive={castaway?.is_active ?? true}
+            isActive={needsSnapshot ? true : (castaway?.is_active ?? true)}
             isIcky
             tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${picks.icky_castaway}?context=icky`)}
@@ -356,16 +420,20 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky, onPress, tribeColors }: { name: string; tribe?: Tribe; points: number; isActive: boolean; isIcky?: boolean; onPress?: () => void; tribeColors: Record<string, string> }) {
+function CastawayRow({ name, tribe, points, isActive, isIcky, onPress, tribeColors }: { name: string; tribe?: Tribe; points: number | null; isActive: boolean; isIcky?: boolean; onPress?: () => void; tribeColors: Record<string, string> }) {
   const tribeColor = tribe ? (tribeColors[tribe] ?? colors.textMuted) : colors.textMuted;
   return (
     <TouchableOpacity style={[styles.castawayRow, { borderLeftColor: tribeColor }]} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
       <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
       {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
-      <Text style={[styles.castawayPoints, points < 0 && styles.negative, points > 0 && styles.positive]}>
-        {points > 0 ? `+${points}` : points}
-      </Text>
+      {points !== null ? (
+        <Text style={[styles.castawayPoints, points < 0 && styles.negative, points > 0 && styles.positive]}>
+          {points > 0 ? `+${points}` : points}
+        </Text>
+      ) : (
+        <Text style={styles.castawayPointsHidden}>—</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -540,6 +608,7 @@ const styles = StyleSheet.create({
   eliminated: { color: colors.textMuted, textDecorationLine: 'line-through' },
   eliminatedBadge: { color: colors.error, fontSize: 10, fontWeight: '800' },
   castawayPoints: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  castawayPointsHidden: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   positive: { color: colors.scorePositive },
   negative: { color: colors.scoreNegative },
   prophecyRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, marginHorizontal: 16, marginBottom: 2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },

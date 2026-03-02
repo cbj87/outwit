@@ -58,20 +58,21 @@ export function useEpisodeSeenStatus() {
     onError: (_err, _ep, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
   });
 
   const markThroughMutation = useMutation({
     mutationFn: async (throughEpisode: number) => {
       if (!userId || throughEpisode < 1) return;
-      const current = queryClient.getQueryData<number[]>(queryKey) ?? [];
-      const currentSet = new Set(current);
+      // Always upsert all rows — do NOT read from cache here because
+      // onMutate has already optimistically updated it, which would cause
+      // this function to think no rows need inserting and skip the DB write.
       const rows: { player_id: string; episode_number: number }[] = [];
       for (let ep = 1; ep <= throughEpisode; ep++) {
-        if (!currentSet.has(ep)) {
-          rows.push({ player_id: userId, episode_number: ep });
-        }
+        rows.push({ player_id: userId, episode_number: ep });
       }
-      if (rows.length === 0) return;
       const { error } = await supabase
         .from('episode_seen_status')
         .upsert(rows, { onConflict: 'player_id,episode_number' });
@@ -89,6 +90,9 @@ export function useEpisodeSeenStatus() {
     },
     onError: (_err, _through, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 

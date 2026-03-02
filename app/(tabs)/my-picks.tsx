@@ -1,15 +1,18 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMyPicks } from '@/hooks/useMyPicks';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
+import { useEpisodeSeenStatus } from '@/hooks/useEpisodeSeenStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import { useCastawayMap } from '@/hooks/useCastaways';
 import { PROPHECY_QUESTIONS } from '@/lib/constants';
 import { useTribeColors } from '@/hooks/useTribeColors';
+import { SpoilerBanner } from '@/components/ui/SpoilerBanner';
 import { colors } from '@/theme/colors';
 
 const glassAvailable = isLiquidGlassAvailable();
@@ -29,11 +32,37 @@ export default function MyPicksScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const activeGroup = useAuthStore((state) => state.activeGroup);
-  const { data, isLoading } = useMyPicks();
   const { config, isPicksLocked } = useSeasonConfig();
   const castawayMap = useCastawayMap();
   const tribeColors = useTribeColors();
   const insets = useSafeAreaInsets();
+
+  // Spoiler protection
+  const {
+    maxSeenEpisode,
+    isLoading: seenLoading,
+    markAllSeenThrough,
+  } = useEpisodeSeenStatus();
+  const [isMarking, setIsMarking] = useState(false);
+  const spoilerEnabled = profile?.spoiler_protection ?? true;
+  const currentEpisode = config?.current_episode ?? 0;
+
+  const { data, isLoading } = useMyPicks({
+    spoilerEnabled,
+    maxSeenEpisode: spoilerEnabled ? maxSeenEpisode : 0,
+    currentEpisode,
+  });
+
+  const handleMarkSeen = useCallback(async () => {
+    setIsMarking(true);
+    try {
+      await markAllSeenThrough(currentEpisode);
+    } catch {
+      Alert.alert('Error', 'Could not update episode status. Please try again.');
+    } finally {
+      setIsMarking(false);
+    }
+  }, [markAllSeenThrough, currentEpisode]);
 
   const initials = (profile?.display_name ?? '?')
     .split(' ')
@@ -42,7 +71,7 @@ export default function MyPicksScreen() {
     .toUpperCase()
     .slice(0, 2);
 
-  if (isLoading) {
+  if (isLoading || seenLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -90,11 +119,23 @@ export default function MyPicksScreen() {
     );
   }
 
-  const { picks, prophecyAnswers, prophecyOutcomes, trioDetail, trioPoints, ickyPoints, prophecyPoints, totalPoints } = data;
+  const { picks, prophecyAnswers, prophecyOutcomes, trioDetail, trioPoints, ickyPoints, prophecyPoints, totalPoints, isSpoilerFiltered } = data;
   const trio = [picks.trio_castaway_1, picks.trio_castaway_2, picks.trio_castaway_3];
   const answersMap = new Map(prophecyAnswers.map((a) => [a.question_id, a.answer]));
-  const outcomesMap = new Map(prophecyOutcomes.map((o) => [o.question_id, o.outcome]));
+  // Filter prophecy outcomes to only seen episodes when spoiler-filtered
+  const outcomesMap = new Map(
+    prophecyOutcomes
+      .filter((o) => {
+        if (isSpoilerFiltered && o.episode_number !== null) {
+          return o.episode_number <= maxSeenEpisode;
+        }
+        return true;
+      })
+      .map((o) => [o.question_id, o.outcome]),
+  );
   const trioDetailMap = new Map(trioDetail.map((d) => [d.castaway_id, d.points_earned]));
+
+  const hasUnseenEpisodes = spoilerEnabled && maxSeenEpisode < currentEpisode && currentEpisode > 0;
 
   return (
     <ScrollView style={[styles.container, { paddingTop: insets.top }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 80 }]}>
@@ -127,6 +168,16 @@ export default function MyPicksScreen() {
         </Glass>
       </View>
 
+      {/* Spoiler banner */}
+      {hasUnseenEpisodes && (
+        <SpoilerBanner
+          currentEpisode={currentEpisode}
+          maxSeenEpisode={maxSeenEpisode}
+          onMarkSeen={handleMarkSeen}
+          isMarking={isMarking}
+        />
+      )}
+
       {!isPicksLocked && (
         <TouchableOpacity style={styles.editButton} onPress={() => router.push('/picks/submit')}>
           <Text style={styles.editButtonText}>Edit Picks</Text>
@@ -136,14 +187,14 @@ export default function MyPicksScreen() {
       <SectionHeader title="Trusted Trio" points={trioPoints} />
       {trio.map((castawayId) => {
         const castaway = castawayMap.get(castawayId);
-        const points = trioDetailMap.get(castawayId) ?? 0;
+        const points = isSpoilerFiltered ? null : (trioDetailMap.get(castawayId) ?? 0);
         return (
           <CastawayRow
             key={castawayId}
             name={castaway?.name ?? '?'}
             tribe={castaway?.original_tribe ?? '?'}
             points={points}
-            isActive={castaway?.is_active ?? true}
+            isActive={isSpoilerFiltered ? true : (castaway?.is_active ?? true)}
             tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${castawayId}`)}
           />
@@ -157,8 +208,8 @@ export default function MyPicksScreen() {
           <CastawayRow
             name={castaway?.name ?? '?'}
             tribe={castaway?.original_tribe ?? '?'}
-            points={ickyPoints}
-            isActive={castaway?.is_active ?? true}
+            points={isSpoilerFiltered ? ickyPoints : ickyPoints}
+            isActive={isSpoilerFiltered ? true : (castaway?.is_active ?? true)}
             isIcky
             tribeColors={tribeColors}
             onPress={() => router.push(`/castaways/${picks.icky_castaway}`)}
@@ -210,7 +261,7 @@ function SectionHeader({ title, points }: { title: string; points: number }) {
   );
 }
 
-function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors, onPress }: { name: string; tribe: string; points: number; isActive: boolean; isIcky?: boolean; tribeColors: Record<string, string>; onPress?: () => void }) {
+function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors, onPress }: { name: string; tribe: string; points: number | null; isActive: boolean; isIcky?: boolean; tribeColors: Record<string, string>; onPress?: () => void }) {
   const tribeColor = tribeColors[tribe] ?? colors.textMuted;
   return (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
@@ -218,9 +269,13 @@ function CastawayRow({ name, tribe, points, isActive, isIcky, tribeColors, onPre
         <View style={[styles.tribeDot, { backgroundColor: tribeColor }]} />
         <Text style={[styles.castawayName, !isActive && styles.eliminated]}>{name}</Text>
         {!isActive && <Text style={styles.eliminatedBadge}>OUT</Text>}
-        <Text style={[styles.castawayPoints, points < 0 && styles.negative]}>
-          {points > 0 ? `+${points}` : points} pts
-        </Text>
+        {points !== null ? (
+          <Text style={[styles.castawayPoints, points < 0 && styles.negative]}>
+            {points > 0 ? `+${points}` : points} pts
+          </Text>
+        ) : (
+          <Text style={styles.castawayPointsHidden}>—</Text>
+        )}
       </Glass>
     </TouchableOpacity>
   );
@@ -255,6 +310,7 @@ const styles = StyleSheet.create({
   eliminated: { color: colors.textMuted, textDecorationLine: 'line-through' },
   eliminatedBadge: { color: colors.error, fontSize: 10, fontWeight: '800' },
   castawayPoints: { color: colors.scorePositive, fontSize: 14, fontWeight: '700' },
+  castawayPointsHidden: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   negative: { color: colors.scoreNegative },
   prophecyRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, marginHorizontal: 16, marginBottom: 2, borderRadius: 14, gap: 8, overflow: 'hidden' },
   prophecyRowCorrect: { backgroundColor: colors.success + '10' },
