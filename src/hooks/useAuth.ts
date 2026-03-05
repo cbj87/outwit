@@ -38,29 +38,43 @@ export function useAuth() {
 
   async function fetchProfile(userId: string) {
     setIsLoading(true);
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    const profileData = data as Profile | null;
-    setProfile(profileData);
-
-    // Fetch active group if one is set
-    if (profileData?.active_group_id) {
-      const { data: groupData } = await supabase
-        .from('groups')
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
         .select('*')
-        .eq('id', profileData.active_group_id)
+        .eq('id', userId)
         .single();
 
-      setActiveGroup(groupData as Group | null);
-    } else {
-      setActiveGroup(null);
-    }
+      if (error) {
+        console.error('Failed to fetch profile:', error.message);
+        setProfile(null);
+        setActiveGroup(null);
+        setIsLoading(false);
+        return;
+      }
 
-    setIsLoading(false);
+      const profileData = data as Profile | null;
+      setProfile(profileData);
+
+      // Fetch active group if one is set
+      if (profileData?.active_group_id) {
+        const { data: groupData } = await supabase
+          .from('groups')
+          .select('*')
+          .eq('id', profileData.active_group_id)
+          .single();
+
+        setActiveGroup(groupData as Group | null);
+      } else {
+        setActiveGroup(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+      setProfile(null);
+      setActiveGroup(null);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function refreshProfile() {

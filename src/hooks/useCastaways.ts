@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -43,7 +44,9 @@ export function useCastawaysByTribe() {
 
 export function useCastawayMap() {
   const { data: castaways } = useCastaways();
-  const map = new Map<number, Castaway>();
-  castaways?.forEach((c) => map.set(c.id, c));
-  return map;
+  return useMemo(() => {
+    const map = new Map<number, Castaway>();
+    castaways?.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [castaways]);
 }

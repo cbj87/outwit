@@ -76,7 +76,10 @@ export function useLeaderboard({
         : Promise.resolve({ data: [] as Picks[], error: null }),
     ]);
 
-    if (membersResult.error || scoresResult.error || profilesResult.error) return;
+    if (membersResult.error || scoresResult.error || profilesResult.error) {
+      setIsLoading(false);
+      return;
+    }
 
     const memberIds = new Set((membersResult.data ?? []).map((m: any) => m.user_id));
     const scores = scoresResult.data as (ScoreCache | ScoreSnapshot)[];

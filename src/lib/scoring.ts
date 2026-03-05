@@ -25,7 +25,8 @@ export function calculateCastawayPoints(
     .filter((e) => e.castaway_id === castawayId)
     .reduce((sum, e) => {
       if (e.event_type === 'survived_episode') {
-        const episodeNumber = episodeNumbers.get(e.episode_id) ?? 0;
+        const episodeNumber = episodeNumbers.get(e.episode_id);
+        if (!episodeNumber) return sum; // skip events without a linked episode
         return sum + getSurvivalPoints(episodeNumber);
       }
       return sum + (EVENT_SCORES[e.event_type] ?? 0);

@@ -36,10 +36,17 @@ export default function ProphecyStatusScreen() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from('prophecy_outcomes')
       .select('*')
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error('Failed to fetch prophecy outcomes:', error.message);
+          setIsLoading(false);
+          return;
+        }
         const map: Record<number, OutcomeState> = {};
         (data as ProphecyOutcome[] ?? []).forEach((o) => {
           map[o.question_id] = o.outcome;
@@ -47,6 +54,7 @@ export default function ProphecyStatusScreen() {
         setOutcomes(map);
         setIsLoading(false);
       });
+    return () => { cancelled = true; };
   }, []);
 
   if (isLoading) {

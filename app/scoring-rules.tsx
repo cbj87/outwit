@@ -99,7 +99,7 @@ export default function ScoringRulesScreen() {
       <View style={styles.tiebreakerCard}>
         <Text style={styles.tiebreakerTitle}>Tiebreaker Order</Text>
         <Text style={styles.tiebreakerText}>
-          Total &rarr; Trio &rarr; Prophecy &rarr; Icky &rarr; Alphabetical
+          Total → Trio → Prophecy → Icky → Alphabetical
         </Text>
       </View>
 

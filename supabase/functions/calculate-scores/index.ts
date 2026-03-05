@@ -258,7 +258,8 @@ Deno.serve(async (req) => {
 
           for (const event of castawayEvents) {
             if (event.event_type === 'survived_episode') {
-              const episodeNum = event.episodes?.episode_number ?? 0;
+              const episodeNum = event.episodes?.episode_number;
+              if (!episodeNum) continue; // skip events without a linked episode
               castawayPoints += getSurvivalPoints(episodeNum);
             } else {
               castawayPoints += EVENT_SCORES[event.event_type] ?? 0;

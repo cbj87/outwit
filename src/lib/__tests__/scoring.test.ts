@@ -114,12 +114,19 @@ describe('calculateCastawayPoints', () => {
     expect(calculateCastawayPoints(1, events, episodeNumbers)).toBe(1 + 2 + 3 + 5 + 7);
   });
 
-  it('defaults to 0 survival points for unknown episode_id', () => {
+  it('skips survival points for unknown episode_id', () => {
     const events = [
-      makeEvent({ castaway_id: 1, event_type: 'survived_episode', episode_id: 999 }), // unknown → ep 0 → 0
+      makeEvent({ castaway_id: 1, event_type: 'survived_episode', episode_id: 999 }), // unknown → skipped
     ];
-    // getSurvivalPoints(0) returns 1 because 0 <= 3
-    expect(calculateCastawayPoints(1, events, episodeNumbers)).toBe(1);
+    // Events without a linked episode should contribute 0 points (not erroneously award 1)
+    expect(calculateCastawayPoints(1, events, episodeNumbers)).toBe(0);
+  });
+
+  it('skips survival points when episodeNumbers map is empty', () => {
+    const events = [
+      makeEvent({ castaway_id: 1, event_type: 'survived_episode', episode_id: 100 }),
+    ];
+    expect(calculateCastawayPoints(1, events, new Map())).toBe(0);
   });
 
   it('combines events and survival points', () => {
