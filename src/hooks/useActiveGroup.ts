@@ -11,14 +11,16 @@ export function useActiveGroup() {
   const switchGroup = useCallback(async (group: Group) => {
     if (!profile) return;
 
-    // Update the store immediately for snappy UI
-    setActiveGroup(group);
-
-    // Persist to DB
+    // Persist to DB first — RLS policies on score_cache filter by
+    // profiles.active_group_id, so the DB must reflect the new group
+    // before any queries fire.
     await supabase
       .from('profiles')
       .update({ active_group_id: group.id })
       .eq('id', profile.id);
+
+    // Now update client state — the re-render will trigger fetches that pass RLS
+    setActiveGroup(group);
 
     // Invalidate all group-scoped queries so they refetch with the new group
     queryClient.invalidateQueries({ queryKey: ['leaderboard'] });

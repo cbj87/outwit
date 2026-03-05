@@ -1,16 +1,19 @@
 import { useCallback, useState } from 'react';
-import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Alert, View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useLeaderboard } from '@/hooks/useLeaderboard';
 import { useSeasonConfig } from '@/hooks/useSeasonConfig';
 import { useEpisodeSeenStatus } from '@/hooks/useEpisodeSeenStatus';
+import { useGroups } from '@/hooks/useGroups';
+import { useActiveGroup } from '@/hooks/useActiveGroup';
 import { useAuthStore } from '@/store/authStore';
 import { SpoilerBanner } from '@/components/ui/SpoilerBanner';
 import { colors } from '@/theme/colors';
-import type { PlayerScore } from '@/types';
+import type { PlayerScore, Group } from '@/types';
 
 const glassAvailable = isLiquidGlassAvailable();
 
@@ -107,6 +110,9 @@ function ListHeader({
   router,
   groupName,
   spoilerBanner,
+  canSwitchGroup,
+  onToggleDropdown,
+  dropdownOpen,
 }: {
   displayedEpisode: number;
   config: any;
@@ -114,13 +120,27 @@ function ListHeader({
   router: any;
   groupName?: string;
   spoilerBanner: React.ReactNode | null;
+  canSwitchGroup?: boolean;
+  onToggleDropdown?: () => void;
+  dropdownOpen?: boolean;
 }) {
   const hasEpisodes = displayedEpisode >= 1;
 
   return (
     <View style={{ paddingTop: insets.top + 8, backgroundColor: colors.background }}>
-      <Text style={styles.screenTitle}>Leaderboard</Text>
-      {groupName && <Text style={styles.groupName}>{groupName}</Text>}
+      <View style={styles.titleRow}>
+        <Text style={styles.screenTitle}>Leaderboard</Text>
+        {groupName && canSwitchGroup ? (
+          <TouchableOpacity style={styles.groupPill} activeOpacity={0.6} onPress={onToggleDropdown}>
+            <Text style={styles.groupPillText} numberOfLines={1}>{groupName}</Text>
+            <Text style={[styles.groupPillChevron, dropdownOpen && styles.groupPillChevronOpen]}>▾</Text>
+          </TouchableOpacity>
+        ) : groupName ? (
+          <View style={styles.groupPillStatic}>
+            <Text style={styles.groupPillStaticText} numberOfLines={1}>{groupName}</Text>
+          </View>
+        ) : null}
+      </View>
       {spoilerBanner}
       <Glass style={styles.episodeBanner}>
         <View style={styles.bannerLeft}>
@@ -180,7 +200,23 @@ export default function LeaderboardScreen() {
     isLoading: seenLoading,
     markAllSeenThrough,
   } = useEpisodeSeenStatus();
+  const { data: groups } = useGroups();
+  const { switchGroup } = useActiveGroup();
   const [isMarking, setIsMarking] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const canSwitchGroup = (groups?.length ?? 0) > 1;
+
+  const toggleDropdown = useCallback(() => {
+    setDropdownOpen((prev) => !prev);
+  }, []);
+
+  const handleSelectGroup = useCallback(async (group: Group) => {
+    setDropdownOpen(false);
+    if (group.id !== activeGroup?.id) {
+      await switchGroup(group);
+    }
+  }, [activeGroup, switchGroup]);
 
   const spoilerEnabled = profile?.spoiler_protection ?? true;
   const currentEpisode = config?.current_episode ?? 0;
@@ -201,6 +237,7 @@ export default function LeaderboardScreen() {
   useFocusEffect(
     useCallback(() => {
       refetch();
+      return () => setDropdownOpen(false);
     }, [refetch]),
   );
 
@@ -255,6 +292,7 @@ export default function LeaderboardScreen() {
       <FlatList
         data={entries}
         keyExtractor={(item) => item.player_id}
+        onScrollBeginDrag={() => setDropdownOpen(false)}
         ListHeaderComponent={
           <ListHeader
             displayedEpisode={displayedEpisode}
@@ -263,6 +301,9 @@ export default function LeaderboardScreen() {
             router={router}
             groupName={activeGroup?.name}
             spoilerBanner={spoilerBanner}
+            canSwitchGroup={canSwitchGroup}
+            onToggleDropdown={toggleDropdown}
+            dropdownOpen={dropdownOpen}
           />
         }
         renderItem={({ item }) => (
@@ -274,6 +315,42 @@ export default function LeaderboardScreen() {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
       />
+      {dropdownOpen && canSwitchGroup && groups && (
+        <>
+          <Pressable
+            style={styles.dropdownBackdrop}
+            onPress={() => setDropdownOpen(false)}
+          />
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(150)}
+            style={[styles.dropdown, { top: insets.top + 52 }]}
+          >
+            {groups.map((g, i) => (
+              <TouchableOpacity
+                key={g.id}
+                style={[
+                  styles.dropdownItem,
+                  i === groups.length - 1 && styles.dropdownItemLast,
+                  g.id === activeGroup?.id && styles.dropdownItemActive,
+                ]}
+                activeOpacity={0.6}
+                onPress={() => handleSelectGroup(g)}
+              >
+                <Text style={[
+                  styles.dropdownItemText,
+                  g.id === activeGroup?.id && styles.dropdownItemTextActive,
+                ]}>
+                  {g.name}
+                </Text>
+                {g.id === activeGroup?.id && (
+                  <Text style={styles.dropdownCheck}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </Animated.View>
+        </>
+      )}
     </View>
   );
 }
@@ -287,12 +364,106 @@ const styles = StyleSheet.create({
   noGroupButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   noGroupButtonSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   noGroupButtonSecondaryText: { color: colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
   screenTitle: {
     color: colors.textPrimary,
     fontSize: 34,
     fontWeight: '800',
+  },
+  groupPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.primaryGlass,
+    flexShrink: 1,
+    maxWidth: '50%',
+  },
+  groupPillText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  groupPillChevron: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  groupPillChevronOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  groupPillStatic: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceGlass,
+    flexShrink: 1,
+    maxWidth: '50%',
+  },
+  groupPillStaticText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  dropdown: {
+    position: 'absolute',
+    right: 16,
+    minWidth: 180,
+    maxWidth: 260,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  dropdownItemLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownItemActive: {
+    backgroundColor: colors.primaryGlass,
+  },
+  dropdownItemText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '500',
+    flex: 1,
+  },
+  dropdownItemTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  dropdownCheck: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   episodeBanner: {
     flexDirection: 'row',
@@ -305,7 +476,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
-  groupName: { color: colors.textSecondary, fontSize: 14, fontWeight: '600', paddingHorizontal: 16, paddingBottom: 8 },
   bannerLeft: { flex: 1, gap: 2 },
   bannerRight: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, flex: 1 },
   bannerLinkText: { color: colors.primary, fontSize: 13, fontWeight: '600' },

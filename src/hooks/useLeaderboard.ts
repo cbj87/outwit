@@ -42,7 +42,11 @@ export function useLeaderboard({
   const spoilerRef = useRef(spoilerEnabled);
   spoilerRef.current = spoilerEnabled;
 
+  // Counter to discard stale fetches (e.g. rapid group switches)
+  const fetchIdRef = useRef(0);
+
   const fetchLeaderboard = useCallback(async () => {
+    const fetchId = ++fetchIdRef.current;
     const revealed = picksRevealedRef.current;
     const gid = groupIdRef.current;
     const curEp = currentEpisodeRef.current;
@@ -75,6 +79,9 @@ export function useLeaderboard({
         ? supabase.from('picks').select('player_id, trio_castaway_1, trio_castaway_2, trio_castaway_3, icky_castaway')
         : Promise.resolve({ data: [] as Picks[], error: null }),
     ]);
+
+    // Discard results if a newer fetch has started (e.g. rapid group switch)
+    if (fetchId !== fetchIdRef.current) return;
 
     if (membersResult.error || scoresResult.error || profilesResult.error) {
       setIsLoading(false);
@@ -113,6 +120,9 @@ export function useLeaderboard({
       }
     }
 
+    // Re-check after potential snapshot fallback fetch
+    if (fetchId !== fetchIdRef.current) return;
+
     const picksMap = new Map(picksData.map((p) => [p.player_id, p]));
 
     const combined: Omit<LeaderboardEntry, 'rank' | 'is_tied'>[] = profiles.map((profile) => {
@@ -141,6 +151,9 @@ export function useLeaderboard({
   }, []);
 
   useEffect(() => {
+    // Show loading spinner while fetching new group data
+    setIsLoading(true);
+
     // Don't fetch until seen status is loaded so we pick the right source
     if (seenLoading) return;
 
