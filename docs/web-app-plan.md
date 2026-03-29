@@ -48,7 +48,7 @@ These files can be imported directly by the web app:
   - This lets web app import from `@shared/types`, `@shared/lib/constants`, etc.
   - In `web/next.config.ts`, set `transpilePackages` if needed for the shared path
 
-- [ ] **Step 3: Set up Supabase client for web**
+- [x] **Step 3: Set up Supabase client for web**
   - Install `@supabase/ssr` and `@supabase/supabase-js` in `web/`
   - Create `web/lib/supabase/client.ts` — browser client using cookies (not AsyncStorage)
   - Create `web/lib/supabase/server.ts` — server-side client for RSC and middleware
