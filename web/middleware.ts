@@ -28,7 +28,24 @@ export async function middleware(request: NextRequest) {
   // Refresh session — must call getUser() (not getSession()) per SSR docs.
   // Do not add any logic between createServerClient and getUser() that could
   // potentially respond before cookies are written.
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+  const isAuthRoute = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+
+  // Unauthenticated user hitting a protected route → redirect to sign-in
+  if (!user && !isAuthRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/sign-in";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Authenticated user hitting an auth route → redirect to home
+  if (user && isAuthRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/";
+    return NextResponse.redirect(redirectUrl);
+  }
 
   return supabaseResponse;
 }

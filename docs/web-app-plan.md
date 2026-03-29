@@ -73,7 +73,7 @@ These files can be imported directly by the web app:
   - Email + password + display name → Supabase `signUp`
   - Note: no Apple Sign-In on web (email only for now)
 
-- [ ] **Step 7: Auth middleware + protected routes**
+- [x] **Step 7: Auth middleware + protected routes**
   - `web/middleware.ts` — redirect to `/sign-in` if no session
   - Public routes: `/sign-in`, `/sign-up`
   - All other routes require auth
