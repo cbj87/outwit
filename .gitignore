@@ -34,3 +34,7 @@ supabase/.temp
 
 expo-env.d.ts
 # @end expo-cli
+
+# Web app (Next.js)
+web/.next/
+web/node_modules/

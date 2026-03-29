@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Survivor brand palette */
+  --color-primary:        #C4402F;
+  --color-primary-dark:   #8B2D1F;
+  --color-primary-light:  #E8A090;
+
+  --color-bg:             #F2F2F7;
+  --color-surface:        #FFFFFF;
+  --color-border:         #E0E0E5;
+
+  --color-text:           #1C1C1E;
+  --color-text-secondary: #6C6C70;
+  --color-text-muted:     #AEAEB2;
+
+  --color-success:        #34C759;
+  --color-error:          #FF3B30;
+  --color-warning:        #FF9500;
+
+  /* Tribe colors */
+  --color-vatu:           #2E7D32;
+  --color-cila:           #1565C0;
+  --color-kalo:           #F57F17;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
