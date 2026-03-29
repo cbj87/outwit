@@ -55,7 +55,7 @@ These files can be imported directly by the web app:
   - Create `web/middleware.ts` — refresh session on every request
   - Add `.env.local` in `web/` (same SUPABASE_URL and ANON_KEY values)
 
-- [ ] **Step 4: Set up auth store**
+- [x] **Step 4: Set up auth store**
   - Create `web/store/authStore.ts` mirroring the iOS Zustand store
   - Handles session, profile, activeGroup, isCommissioner, isGroupCommissioner
 
