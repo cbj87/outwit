@@ -43,7 +43,7 @@ These files can be imported directly by the web app:
   - Add to root `.gitignore` entries: `web/.next`, `web/node_modules`
   - Keep `web/package.json` separate (not a monorepo)
 
-- [ ] **Step 2: Configure shared code access**
+- [x] **Step 2: Configure shared code access**
   - In `web/tsconfig.json`, add path alias: `"@shared/*": ["../src/*"]`
   - This lets web app import from `@shared/types`, `@shared/lib/constants`, etc.
   - In `web/next.config.ts`, set `transpilePackages` if needed for the shared path
@@ -82,25 +82,25 @@ These files can be imported directly by the web app:
 
 ### Phase 3 — Core Read-Only Pages
 
-- [ ] **Step 8: Leaderboard (home page)**
+- [x] **Step 8: Leaderboard (home page)**
   - `web/app/(app)/page.tsx`
   - Mirrors `app/(tabs)/index.tsx`
   - Shows ranked player list with trio/icky/prophecy/total scores
   - Reads from `score_cache` via React Query
   - Respect spoiler protection (show score_snapshots for protected users)
 
-- [ ] **Step 9: Castaways page**
+- [x] **Step 9: Castaways page**
   - `web/app/(app)/castaways/page.tsx`
   - Mirrors `app/(tabs)/castaways.tsx`
   - Grouped by tribe (VATU / CILA / KALO), shows who picked each castaway
   - Only shows picks if `picks_revealed = true` for the active group
 
-- [ ] **Step 10: Castaway detail page**
+- [x] **Step 10: Castaway detail page**
   - `web/app/(app)/castaways/[id]/page.tsx`
   - Mirrors `app/castaways/[id].tsx`
   - Shows castaway info, event history, total points contributed
 
-- [ ] **Step 11: My Picks page**
+- [x] **Step 11: My Picks page**
   - `web/app/(app)/my-picks/page.tsx`
   - Mirrors `app/(tabs)/my-picks.tsx`
   - Shows the current user's trio + icky pick + score breakdown
