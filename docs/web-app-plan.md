@@ -63,12 +63,12 @@ These files can be imported directly by the web app:
 
 ### Phase 2 — Authentication
 
-- [ ] **Step 5: Sign-in page**
+- [x] **Step 5: Sign-in page**
   - `web/app/(auth)/sign-in/page.tsx`
   - Email + password form → Supabase `signInWithPassword`
   - Redirect to `/` on success
 
-- [ ] **Step 6: Sign-up page**
+- [x] **Step 6: Sign-up page**
   - `web/app/(auth)/sign-up/page.tsx`
   - Email + password + display name → Supabase `signUp`
   - Note: no Apple Sign-In on web (email only for now)
