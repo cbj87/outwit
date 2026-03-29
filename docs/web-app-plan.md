@@ -38,7 +38,7 @@ These files can be imported directly by the web app:
 
 ### Phase 1 — Project Setup
 
-- [ ] **Step 1: Scaffold `web/` Next.js app**
+- [x] **Step 1: Scaffold `web/` Next.js app**
   - Run `npx create-next-app@latest web` with App Router + TypeScript + Tailwind
   - Add to root `.gitignore` entries: `web/.next`, `web/node_modules`
   - Keep `web/package.json` separate (not a monorepo)
