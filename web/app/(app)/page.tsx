@@ -285,12 +285,15 @@ function ProphecyPicksTab({ activeGroupId, session }: { activeGroupId: string; s
       const [membersResult, outcomesResult] = await Promise.all([
         supabase
           .from("group_members")
-          .select("user_id, profiles(display_name)")
+          .select("user_id, profiles(display_name, avatar_url)")
           .eq("group_id", activeGroupId),
         supabase.from("prophecy_outcomes").select("question_id, outcome"),
       ]);
 
-      const members = (membersResult.data ?? []) as { user_id: string; profiles: { display_name: string } | null }[];
+      const members = (membersResult.data ?? []) as {
+        user_id: string;
+        profiles: { display_name: string; avatar_url: string | null } | null;
+      }[];
       const memberIds = members.map((m) => m.user_id);
 
       const answersResult = await supabase
@@ -300,7 +303,11 @@ function ProphecyPicksTab({ activeGroupId, session }: { activeGroupId: string; s
 
       return {
         members: members
-          .map((m) => ({ id: m.user_id, name: m.profiles?.display_name ?? "?" }))
+          .map((m) => ({
+            id: m.user_id,
+            name: m.profiles?.display_name ?? "?",
+            avatarUrl: m.profiles?.avatar_url ?? null,
+          }))
           .sort((a, b) => a.name.localeCompare(b.name)),
         answers: (answersResult.data ?? []) as { player_id: string; question_id: number; answer: boolean }[],
         outcomes: (outcomesResult.data ?? []) as { question_id: number; outcome: boolean | null }[],
@@ -322,87 +329,147 @@ function ProphecyPicksTab({ activeGroupId, session }: { activeGroupId: string; s
   const outcomeMap = new Map<number, boolean | null>();
   outcomes.forEach((o) => outcomeMap.set(o.question_id, o.outcome));
 
-  return (
-    <div className="space-y-2">
-      {/* Header row */}
-      <div
-        className="flex items-center gap-2 px-3 py-2 rounded-lg"
-        style={{ backgroundColor: "var(--color-surface)" }}
-      >
-        <div className="flex-1 text-xs font-bold uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
-          Question
-        </div>
-        <div className="flex gap-1 flex-shrink-0">
-          {members.map((m) => (
-            <div
-              key={m.id}
-              className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-              style={{ backgroundColor: getAvatarColor(m.name) }}
-              title={m.name}
-            >
-              {getInitials(m.name)}
-            </div>
-          ))}
-        </div>
-      </div>
+  // Column widths: question column is fixed, each player column is 36px
+  const COL = 36; // px per player column
 
-      {PROPHECY_QUESTIONS.map((q) => {
-        const outcome = outcomeMap.get(q.id);
-        return (
+  return (
+    // -mx-4 px-4 lets the scroll area go edge-to-edge on mobile
+    <div className="-mx-4 overflow-x-auto">
+      <div style={{ minWidth: `${220 + members.length * COL}px` }} className="px-4">
+
+        {/* Header: sticky question label + player avatar circles */}
+        <div
+          className="flex items-end gap-0 mb-1 px-3 py-2 rounded-xl"
+          style={{ backgroundColor: "var(--color-surface)" }}
+        >
+          {/* Question column header */}
           <div
-            key={q.id}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl border"
-            style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            className="text-xs font-bold uppercase tracking-wider flex-shrink-0"
+            style={{ width: 200, color: "var(--color-text-muted)" }}
           >
-            <div className="flex-1 min-w-0">
-              <div className="text-xs leading-snug" style={{ color: "var(--color-text)" }}>
-                {q.text}
+            Question
+          </div>
+          {/* Player avatar headers */}
+          <div className="flex">
+            {members.map((m) => (
+              <div
+                key={m.id}
+                className="flex flex-col items-center gap-1 flex-shrink-0"
+                style={{ width: COL }}
+                title={m.name}
+              >
+                {m.avatarUrl ? (
+                  <img
+                    src={m.avatarUrl}
+                    alt={m.name}
+                    className="rounded-full object-cover"
+                    style={{ width: 26, height: 26 }}
+                  />
+                ) : (
+                  <div
+                    className="rounded-full flex items-center justify-center text-white font-bold"
+                    style={{
+                      width: 26, height: 26,
+                      fontSize: 9,
+                      backgroundColor: getAvatarColor(m.name),
+                    }}
+                  >
+                    {getInitials(m.name)}
+                  </div>
+                )}
+                <span
+                  className="text-center leading-tight font-semibold"
+                  style={{
+                    fontSize: 8,
+                    color: "var(--color-text-muted)",
+                    width: COL - 4,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    display: "block",
+                  }}
+                >
+                  {m.name}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{q.points}pt</span>
-                <OutcomePill outcome={outcome ?? null} />
+            ))}
+          </div>
+        </div>
+
+        {/* Question rows */}
+        {PROPHECY_QUESTIONS.map((q) => {
+          const outcome = outcomeMap.get(q.id);
+          return (
+            <div
+              key={q.id}
+              className="flex items-center gap-0 px-3 py-2.5 rounded-xl border mb-1.5"
+              style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            >
+              {/* Question text + points + outcome */}
+              <div className="flex-shrink-0 pr-2" style={{ width: 200 }}>
+                <div className="text-xs leading-snug" style={{ color: "var(--color-text)" }}>
+                  {q.text}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{q.points}pt</span>
+                  <OutcomePill outcome={outcome ?? null} />
+                </div>
               </div>
-            </div>
-            <div className="flex gap-1 flex-shrink-0">
-              {members.map((m) => {
-                const answer = answerMap.get(`${m.id}_${q.id}`);
-                if (answer === undefined) {
+
+              {/* Y / N cells */}
+              <div className="flex items-center">
+                {members.map((m) => {
+                  const answer = answerMap.get(`${m.id}_${q.id}`);
+                  if (answer === undefined) {
+                    return (
+                      <div
+                        key={m.id}
+                        className="rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: 24, height: 24,
+                          marginLeft: (COL - 24) / 2,
+                          marginRight: (COL - 24) / 2,
+                          fontSize: 9,
+                          backgroundColor: "var(--color-background)",
+                          border: "1px dashed var(--color-border)",
+                          color: "var(--color-text-muted)",
+                        }}
+                        title={`${m.name}: no answer`}
+                      >
+                        –
+                      </div>
+                    );
+                  }
+                  const isCorrect = outcome != null && answer === outcome;
+                  const isWrong = outcome != null && answer !== outcome;
                   return (
                     <div
                       key={m.id}
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0"
-                      style={{ backgroundColor: "var(--color-background)", border: "1px dashed var(--color-border)", color: "var(--color-text-muted)" }}
-                      title={`${m.name}: no answer`}
+                      className="rounded-full flex items-center justify-center font-bold flex-shrink-0"
+                      style={{
+                        width: 24, height: 24,
+                        marginLeft: (COL - 24) / 2,
+                        marginRight: (COL - 24) / 2,
+                        fontSize: 9,
+                        backgroundColor: answer
+                          ? isCorrect ? "rgba(34,197,94,0.2)" : isWrong ? "rgba(196,64,47,0.15)" : "rgba(34,197,94,0.1)"
+                          : isWrong ? "rgba(34,197,94,0.15)" : "rgba(196,64,47,0.1)",
+                        color: answer
+                          ? isCorrect ? "#16a34a" : isWrong ? "var(--color-primary)" : "#22c55e"
+                          : isWrong ? "#16a34a" : "var(--color-primary)",
+                        border: `1px solid ${answer ? "rgba(34,197,94,0.3)" : "rgba(196,64,47,0.3)"}`,
+                      }}
+                      title={`${m.name}: ${answer ? "Yes" : "No"}`}
                     >
-                      ?
+                      {answer ? "Y" : "N"}
                     </div>
                   );
-                }
-                const isCorrect = outcome !== null && outcome !== undefined && answer === outcome;
-                const isWrong = outcome !== null && outcome !== undefined && answer !== outcome;
-                return (
-                  <div
-                    key={m.id}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{
-                      backgroundColor: answer
-                        ? isCorrect ? "rgba(34,197,94,0.2)" : isWrong ? "rgba(196,64,47,0.15)" : "rgba(34,197,94,0.1)"
-                        : isWrong ? "rgba(34,197,94,0.15)" : "rgba(196,64,47,0.1)",
-                      color: answer
-                        ? isCorrect ? "#16a34a" : isWrong ? "var(--color-primary)" : "#22c55e"
-                        : isWrong ? "#16a34a" : "var(--color-primary)",
-                      border: `1px solid ${answer ? "rgba(34,197,94,0.3)" : "rgba(196,64,47,0.3)"}`,
-                    }}
-                    title={`${m.name}: ${answer ? "Yes" : "No"}`}
-                  >
-                    {answer ? "Y" : "N"}
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
