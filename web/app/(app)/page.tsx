@@ -690,23 +690,33 @@ export default function LeaderboardPage() {
 
       {/* Episode banner */}
       <div
-        className="flex items-center justify-between px-4 py-3 rounded-xl border"
+        className="px-4 py-3 rounded-xl border"
         style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
       >
-        <div>
-          <div className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-            {displayedEpisode ? `Standings Thru Episode ${displayedEpisode}` : "Pre-Season Standings"}
-          </div>
-          {!picksRevealed && (
-            <div className="text-xs italic mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-              Picks hidden until reveal
-            </div>
-          )}
+        <div className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+          {displayedEpisode ? `Standings Thru Episode ${displayedEpisode}` : "Pre-Season Standings"}
         </div>
-        <Link href="/players/gallery" className="text-sm font-bold flex items-center gap-0.5 ml-4" style={{ color: "var(--color-primary)" }}>
-          Player Bios <span>›</span>
-        </Link>
+        {!picksRevealed && (
+          <div className="text-xs italic mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+            Picks hidden until reveal
+          </div>
+        )}
       </div>
+
+      {/* Player Bios — dedicated row */}
+      <Link
+        href="/players/gallery"
+        className="flex items-center justify-between px-4 py-3 rounded-xl border transition-opacity hover:opacity-75"
+        style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">🏝️</span>
+          <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+            Player Bios
+          </span>
+        </div>
+        <span className="text-sm font-bold" style={{ color: "var(--color-primary)" }}>›</span>
+      </Link>
 
       {/* Tab buttons */}
       <div className="flex gap-2 overflow-x-auto pb-0.5">
