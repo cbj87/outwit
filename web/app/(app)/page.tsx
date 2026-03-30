@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
-import type { PlayerScore } from "@shared/types";
+import type { PlayerScore, Group } from "@shared/types";
 
 const RANK_COLORS: Record<number, string> = {
   1: "#D4A017",
@@ -127,6 +130,48 @@ function LeaderboardRow({
 export default function LeaderboardPage() {
   const activeGroup = useAuthStore((s) => s.activeGroup);
   const profile = useAuthStore((s) => s.profile);
+  const session = useAuthStore((s) => s.session);
+  const setActiveGroup = useAuthStore((s) => s.setActiveGroup);
+  const queryClient = useQueryClient();
+
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const { data: groups = [] } = useQuery({
+    queryKey: ["my-groups", session?.user.id],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("group_members")
+        .select("groups(*)")
+        .eq("user_id", session!.user.id);
+      return ((data ?? []).map((r: any) => r.groups).filter(Boolean)) as Group[];
+    },
+    enabled: !!session?.user.id,
+  });
+
+  useEffect(() => {
+    if (!showGroupPicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowGroupPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showGroupPicker]);
+
+  async function handleSwitchGroup(group: Group) {
+    if (!profile) return;
+    setShowGroupPicker(false);
+    const supabase = createClient();
+    await supabase
+      .from("profiles")
+      .update({ active_group_id: group.id, updated_at: new Date().toISOString() })
+      .eq("id", profile.id);
+    setActiveGroup(group);
+    queryClient.invalidateQueries();
+  }
 
   const { config, isLoading: configLoading } = useSeasonConfig();
   const { maxSeenEpisode, isLoading: seenLoading } = useEpisodeSeenStatus();
@@ -222,9 +267,52 @@ export default function LeaderboardPage() {
           )}
         </div>
         <div className="flex items-center gap-3 ml-4 flex-shrink-0">
-          <span className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-            {activeGroup.name}
-          </span>
+          {/* Group switcher */}
+          <div ref={pickerRef} className="relative">
+            <button
+              onClick={() => setShowGroupPicker((v) => !v)}
+              className="flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 transition-colors"
+              style={{
+                color: "var(--color-text-secondary)",
+                backgroundColor: showGroupPicker ? "var(--color-border)" : "transparent",
+              }}
+            >
+              {activeGroup.name}
+              {groups.length > 1 && (
+                <span style={{ color: "var(--color-text-muted)", fontSize: "0.6rem" }}>
+                  {showGroupPicker ? "▴" : "▾"}
+                </span>
+              )}
+            </button>
+            {showGroupPicker && groups.length > 1 && (
+              <div
+                className="absolute right-0 top-full mt-1 min-w-[140px] rounded-xl border shadow-lg z-20 overflow-hidden"
+                style={{
+                  backgroundColor: "var(--color-surface)",
+                  borderColor: "var(--color-border)",
+                }}
+              >
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => handleSwitchGroup(g)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-left text-xs font-semibold hover:opacity-70 transition-opacity border-b last:border-b-0"
+                    style={{
+                      color: g.id === activeGroup.id ? "var(--color-primary)" : "var(--color-text)",
+                      borderColor: "var(--color-border)",
+                      backgroundColor:
+                        g.id === activeGroup.id ? "rgba(196,64,47,0.06)" : "transparent",
+                    }}
+                  >
+                    {g.name}
+                    {g.id === activeGroup.id && (
+                      <span style={{ color: "var(--color-primary)" }}>✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Link
             href="/players/gallery"
             className="text-xs font-bold flex items-center gap-0.5"
