@@ -30,7 +30,7 @@ export function NavBar() {
 
   return (
     <nav
-      className="sticky top-0 z-50 border-b"
+      className="sticky top-0 z-50 border-b hidden md:block"
       style={{
         backgroundColor: "var(--color-surface)",
         borderColor: "var(--color-border)",

@@ -201,6 +201,49 @@ All admin pages check `is_commissioner` and return 404 for non-commissioners.
 
 ---
 
+---
+
+### Phase 8 — UI / Mobile Polish
+
+- [ ] **Step 27: Responsive mobile navigation (bottom tab bar)**
+  - On mobile screens, replace the top horizontal nav with a bottom tab bar matching the iOS app's pattern
+  - Desktop keeps the current top nav
+  - Tabs: Leaderboard, My Picks, Castaways, Profile (+ Admin for commissioners)
+  - Add PWA meta tags + web manifest so users can "Add to Home Screen"
+
+- [ ] **Step 28: Page headings**
+  - Every page currently jumps straight into content with no visible title
+  - Add large bold page heading at top of each page (e.g. "Leaderboard", "My Picks", etc.)
+  - Match the iOS app's prominent heading style
+
+- [ ] **Step 29: Fix leaderboard tab toggle UX**
+  - The Episode Recaps / Prophecy Picks / Scoring tabs toggle off when clicked again, but this isn't obvious
+  - Add a visible "✕" or "Close" affordance on the active tab so users know they can dismiss it
+  - Also add a "← Back to Standings" label or visual cue
+
+- [ ] **Step 30: Declutter episode banner + promote group switcher**
+  - The episode banner row packs: episode title + picks-hidden notice + group switcher + Player Bios link
+  - Move group switcher to a more prominent position (large pill at top, like iOS screenshot)
+  - Give Player Bios its own dedicated visible button/row
+
+- [ ] **Step 31: Fix Prophecy Picks grid on mobile**
+  - The 12-player × 16-question Y/N grid overflows horizontally on small screens
+  - Make player circles scroll horizontally or abbreviate names better
+
+- [ ] **Step 32: Dark mode**
+  - Add `@media (prefers-color-scheme: dark)` CSS variable overrides in globals.css
+  - All surfaces, text, and borders need dark equivalents
+
+- [ ] **Step 33: Narrow max-width**
+  - `max-w-4xl` (896px) is too wide — leaderboard rows feel stretched on widescreen
+  - Change app layout to `max-w-2xl` for a more focused, native-app-like feel
+
+- [ ] **Step 34: Leaderboard row hover / tap polish**
+  - Clickable rows (when picks revealed) need `cursor-pointer` and a subtle lift/background-change on hover
+  - Currently only has `hover:opacity-80` which is barely noticeable
+
+---
+
 ## Critical Files (iOS — do not modify)
 
 - `app/` — all Expo Router routes

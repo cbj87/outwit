@@ -21,7 +21,7 @@ export function useEpisodeSeenStatus() {
 
   const maxSeenEpisode =
     query.data && query.data.length > 0
-      ? Math.max(...query.data.map((r) => r.episode_number))
+      ? Math.max(...query.data.map((r: { episode_number: number }) => r.episode_number))
       : 0;
 
   return { maxSeenEpisode, isLoading: query.isLoading };

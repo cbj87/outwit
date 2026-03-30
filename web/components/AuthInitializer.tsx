@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { Profile, Group } from "@shared/types";
 
 export function AuthInitializer() {
@@ -42,7 +43,7 @@ export function AuthInitializer() {
     // Deferring with setTimeout lets the lock release before the DB call runs.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       setSession(session);
       if (session) {
         setTimeout(async () => {

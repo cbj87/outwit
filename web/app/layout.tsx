@@ -16,6 +16,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Outwit Open",
   description: "Survivor Season 50 Fantasy League",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Outwit Open",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "theme-color": "#C4402F",
+  },
 };
 
 export default function RootLayout({
