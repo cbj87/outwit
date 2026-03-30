@@ -710,21 +710,36 @@ export default function LeaderboardPage() {
 
       {/* Tab buttons */}
       <div className="flex gap-2 overflow-x-auto pb-0.5">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(activeTab === tab.id ? null : tab.id)}
-            className="flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-colors"
-            style={{
-              backgroundColor: activeTab === tab.id ? "var(--color-primary)" : "var(--color-surface)",
-              color: activeTab === tab.id ? "#fff" : "var(--color-text-secondary)",
-              borderColor: activeTab === tab.id ? "var(--color-primary)" : "var(--color-border)",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(isActive ? null : tab.id)}
+              className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-colors"
+              style={{
+                backgroundColor: isActive ? "var(--color-primary)" : "var(--color-surface)",
+                color: isActive ? "#fff" : "var(--color-text-secondary)",
+                borderColor: isActive ? "var(--color-primary)" : "var(--color-border)",
+              }}
+            >
+              {tab.label}
+              {isActive && <span className="text-xs opacity-75 leading-none">✕</span>}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Back to Standings — shown when a tab panel is open */}
+      {activeTab && (
+        <button
+          onClick={() => setActiveTab(null)}
+          className="flex items-center gap-1 text-sm font-semibold"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          ← Back to Standings
+        </button>
+      )}
 
       {/* Spoiler protection banner */}
       {hasUnseenEpisodes && !activeTab && (
