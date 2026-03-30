@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { PageHeading } from "@/components/PageHeading";
 import { PROPHECY_QUESTIONS } from "@shared/lib/constants";
 import type { PlayerScore, Group } from "@shared/types";
 
@@ -641,6 +642,52 @@ export default function LeaderboardPage() {
 
   return (
     <div className="space-y-3">
+      {/* Page heading with group switcher */}
+      <PageHeading
+        title="Leaderboard"
+        right={
+          <div ref={pickerRef} className="relative">
+            <button
+              onClick={() => setShowGroupPicker((v) => !v)}
+              className="flex items-center gap-1.5 font-semibold rounded-2xl px-4 py-2 transition-colors text-sm"
+              style={{
+                color: "var(--color-primary)",
+                backgroundColor: "rgba(196,64,47,0.10)",
+              }}
+            >
+              {activeGroup.name}
+              {groups.length > 1 && (
+                <span style={{ fontSize: "0.65rem" }}>
+                  {showGroupPicker ? "▴" : "▾"}
+                </span>
+              )}
+            </button>
+            {showGroupPicker && groups.length > 1 && (
+              <div
+                className="absolute right-0 top-full mt-1 min-w-[160px] rounded-xl border shadow-lg z-20 overflow-hidden"
+                style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+              >
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => handleSwitchGroup(g)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-left text-sm font-semibold hover:opacity-70 transition-opacity border-b last:border-b-0"
+                    style={{
+                      color: g.id === activeGroup.id ? "var(--color-primary)" : "var(--color-text)",
+                      borderColor: "var(--color-border)",
+                      backgroundColor: g.id === activeGroup.id ? "rgba(196,64,47,0.06)" : "transparent",
+                    }}
+                  >
+                    {g.name}
+                    {g.id === activeGroup.id && <span style={{ color: "var(--color-primary)" }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        }
+      />
+
       {/* Episode banner */}
       <div
         className="flex items-center justify-between px-4 py-3 rounded-xl border"
@@ -656,51 +703,9 @@ export default function LeaderboardPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3 ml-4 flex-shrink-0">
-          {/* Group switcher */}
-          <div ref={pickerRef} className="relative">
-            <button
-              onClick={() => setShowGroupPicker((v) => !v)}
-              className="flex items-center gap-1 text-xs font-semibold rounded-lg px-2 py-1 transition-colors"
-              style={{
-                color: "var(--color-text-secondary)",
-                backgroundColor: showGroupPicker ? "var(--color-border)" : "transparent",
-              }}
-            >
-              {activeGroup.name}
-              {groups.length > 1 && (
-                <span style={{ color: "var(--color-text-muted)", fontSize: "0.6rem" }}>
-                  {showGroupPicker ? "▴" : "▾"}
-                </span>
-              )}
-            </button>
-            {showGroupPicker && groups.length > 1 && (
-              <div
-                className="absolute right-0 top-full mt-1 min-w-[140px] rounded-xl border shadow-lg z-20 overflow-hidden"
-                style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
-              >
-                {groups.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => handleSwitchGroup(g)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 text-left text-xs font-semibold hover:opacity-70 transition-opacity border-b last:border-b-0"
-                    style={{
-                      color: g.id === activeGroup.id ? "var(--color-primary)" : "var(--color-text)",
-                      borderColor: "var(--color-border)",
-                      backgroundColor: g.id === activeGroup.id ? "rgba(196,64,47,0.06)" : "transparent",
-                    }}
-                  >
-                    {g.name}
-                    {g.id === activeGroup.id && <span style={{ color: "var(--color-primary)" }}>✓</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <Link href="/players/gallery" className="text-xs font-bold flex items-center gap-0.5" style={{ color: "var(--color-primary)" }}>
-            Player Bios <span>›</span>
-          </Link>
-        </div>
+        <Link href="/players/gallery" className="text-sm font-bold flex items-center gap-0.5 ml-4" style={{ color: "var(--color-primary)" }}>
+          Player Bios <span>›</span>
+        </Link>
       </div>
 
       {/* Tab buttons */}

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useBioQuestions } from "@/hooks/useBioQuestions";
+import { PageHeading } from "@/components/PageHeading";
 import type { Group } from "@shared/types";
 
 const AVATAR_COLORS = [
@@ -191,39 +192,38 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black" style={{ color: "var(--color-primary)" }}>
-          Profile
-        </h1>
-        {isEditing ? (
-          <div className="flex items-center gap-3">
+      <PageHeading
+        title="Profile"
+        right={
+          isEditing ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setDisplayName(profile.display_name); setIsEditing(false); setError(null); }}
+                className="text-sm font-semibold"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSavingName}
+                className="text-sm font-bold px-4 py-1.5 rounded-lg text-white disabled:opacity-60"
+                style={{ backgroundColor: "var(--color-primary)" }}
+              >
+                {isSavingName ? "Saving..." : "Save"}
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => { setDisplayName(profile.display_name); setIsEditing(false); setError(null); }}
+              onClick={() => setIsEditing(true)}
               className="text-sm font-semibold"
-              style={{ color: "var(--color-text-secondary)" }}
+              style={{ color: "var(--color-primary)" }}
             >
-              Cancel
+              Edit
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSavingName}
-              className="text-sm font-bold px-4 py-1.5 rounded-lg text-white disabled:opacity-60"
-              style={{ backgroundColor: "var(--color-primary)" }}
-            >
-              {isSavingName ? "Saving..." : "Save"}
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-sm font-semibold"
-            style={{ color: "var(--color-primary)" }}
-          >
-            Edit
-          </button>
-        )}
-      </div>
+          )
+        }
+      />
 
       {error && (
         <div

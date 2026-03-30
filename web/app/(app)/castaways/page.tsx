@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCastawaysByTribe } from "@/hooks/useCastaways";
 import { useAllPicks } from "@/hooks/useAllPicks";
+import { PageHeading } from "@/components/PageHeading";
 import type { Castaway } from "@shared/types";
 
 const TRIBE_COLORS: Record<string, string> = {
@@ -90,9 +91,7 @@ export default function CastawaysPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-black" style={{ color: "var(--color-text)" }}>
-        Castaways
-      </h1>
+      <PageHeading title="Castaways" />
 
       {tribes.map((tribe) => {
         const castaways = byTribe[tribe] ?? [];

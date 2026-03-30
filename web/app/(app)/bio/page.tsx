@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useBioQuestions } from "@/hooks/useBioQuestions";
+import { PageHeading } from "@/components/PageHeading";
 
 export default function BioPage() {
   const router = useRouter();
@@ -88,29 +89,28 @@ export default function BioPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black" style={{ color: "var(--color-primary)" }}>
-          Survivor Bio
-        </h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/profile")}
-            className="text-sm font-semibold"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-            className="text-sm font-bold px-4 py-1.5 rounded-lg text-white disabled:opacity-40"
-            style={{ backgroundColor: "var(--color-primary)" }}
-          >
-            {isSaving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </div>
+      <PageHeading
+        title="Survivor Bio"
+        right={
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/profile")}
+              className="text-sm font-semibold"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || isSaving}
+              className="text-sm font-bold px-4 py-1.5 rounded-lg text-white disabled:opacity-40"
+              style={{ backgroundColor: "var(--color-primary)" }}
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        }
+      />
 
       {/* Subtitle */}
       <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>

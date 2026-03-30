@@ -6,6 +6,7 @@ import { useMyPicks } from "@/hooks/useMyPicks";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { useCastawayMap } from "@/hooks/useCastaways";
+import { PageHeading } from "@/components/PageHeading";
 import { PROPHECY_QUESTIONS } from "@shared/lib/constants";
 
 const TRIBE_COLORS: Record<string, string> = {
@@ -281,6 +282,7 @@ export default function MyPicksPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      <PageHeading title="My Picks" />
       {/* Player header */}
       <div
         className="flex flex-col items-center py-6 rounded-xl"

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useBioQuestions } from "@/hooks/useBioQuestions";
+import { PageHeading } from "@/components/PageHeading";
 
 const AVATAR_COLORS = [
   "#C4402F", "#2E7D32", "#1565C0", "#F57F17",
@@ -90,9 +91,7 @@ export default function PlayerGalleryPage() {
   return (
     <>
       <div className="space-y-4 pb-8">
-        <h1 className="text-2xl font-black" style={{ color: "var(--color-primary)" }}>
-          Player Bios
-        </h1>
+        <PageHeading title="Player Bios" />
 
         {players.length === 0 ? (
           <p className="text-sm py-10 text-center" style={{ color: "var(--color-text-muted)" }}>
