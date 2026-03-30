@@ -122,7 +122,7 @@ These files can be imported directly by the web app:
   - 16 yes/no questions from `prophecy_questions` table
   - Locked after picks deadline
 
-- [ ] **Step 14: Profile page**
+- [x] **Step 14: Profile page**
   - `web/app/(app)/profile/page.tsx`
   - Mirrors `app/(tabs)/profile.tsx`
   - Edit display name, avatar (upload to Supabase storage)
@@ -131,7 +131,7 @@ These files can be imported directly by the web app:
   - Group management (view active group, join/create group)
   - Sign out
 
-- [ ] **Step 15: Player detail page**
+- [x] **Step 15: Player detail page**
   - `web/app/(app)/player/[id]/page.tsx`
   - Mirrors `app/player/[id].tsx`
   - Shows another player's score breakdown

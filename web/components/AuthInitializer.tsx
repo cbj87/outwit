@@ -32,23 +32,28 @@ export function AuthInitializer() {
       }
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session) await loadProfile(session.user.id);
-      setIsLoading(false);
-    });
-
+    // onAuthStateChange fires INITIAL_SESSION on setup — no need for a
+    // separate getSession() call, which would compete for the same Web Lock
+    // and cause "lock stolen" errors under React Strict Mode.
+    //
+    // IMPORTANT: The callback must NOT be async and must NOT call supabase.from()
+    // directly. onAuthStateChange holds the Navigator Lock while calling this
+    // callback; supabase.from() → getSession() → re-acquires the same lock → deadlock.
+    // Deferring with setTimeout lets the lock release before the DB call runs.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        await loadProfile(session.user.id);
+        setTimeout(async () => {
+          await loadProfile(session.user.id);
+          setIsLoading(false);
+        }, 0);
       } else {
         setProfile(null);
         setActiveGroup(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();

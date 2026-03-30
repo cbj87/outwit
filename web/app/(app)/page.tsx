@@ -221,9 +221,18 @@ export default function LeaderboardPage() {
             </div>
           )}
         </div>
-        <span className="text-xs font-semibold ml-4" style={{ color: "var(--color-text-secondary)" }}>
-          {activeGroup.name}
-        </span>
+        <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+          <span className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+            {activeGroup.name}
+          </span>
+          <Link
+            href="/players/gallery"
+            className="text-xs font-bold flex items-center gap-0.5"
+            style={{ color: "var(--color-primary)" }}
+          >
+            Player Bios <span>›</span>
+          </Link>
+        </div>
       </div>
 
       {/* Spoiler protection banner */}
