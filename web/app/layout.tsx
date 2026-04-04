@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     title: "Outwit Open",
   },
   icons: {
-    apple: "/apple-touch-icon.png",
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   other: {
     "mobile-web-app-capable": "yes",
