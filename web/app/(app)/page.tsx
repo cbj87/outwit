@@ -217,7 +217,8 @@ function EpisodeRecapsTab({ session }: { session: any }) {
             style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
           >
             {/* Header */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
               <span className="text-sm font-bold" style={{ color: "var(--color-text)" }}>
                 Episode {ep.episode_number}
               </span>
@@ -231,6 +232,14 @@ function EpisodeRecapsTab({ session }: { session: any }) {
                   Finale
                 </span>
               )}
+              </div>
+              <Link
+                href={`/episodes/${ep.id}`}
+                className="text-xs font-semibold flex-shrink-0"
+                style={{ color: "var(--color-primary)" }}
+              >
+                Full recap ›
+              </Link>
             </div>
 
             {/* Departed */}
@@ -661,7 +670,7 @@ export default function LeaderboardPage() {
   }
 
   const { config, isLoading: configLoading } = useSeasonConfig();
-  const { maxSeenEpisode, isLoading: seenLoading } = useEpisodeSeenStatus();
+  const { maxSeenEpisode, isLoading: seenLoading, isMarking, markAllSeenThrough } = useEpisodeSeenStatus();
 
   const spoilerEnabled = profile?.spoiler_protection ?? true;
   const currentEpisode = config?.current_episode ?? 0;
@@ -821,14 +830,27 @@ export default function LeaderboardPage() {
       {/* Spoiler protection banner */}
       {hasUnseenEpisodes && !activeTab && (
         <div
-          className="px-4 py-3 rounded-xl text-sm border"
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border"
           style={{ backgroundColor: "rgba(196,64,47,0.06)", borderColor: "rgba(196,64,47,0.2)" }}
         >
-          <span className="font-semibold" style={{ color: "var(--color-primary)" }}>Spoiler protection on</span>
-          <span style={{ color: "var(--color-text-secondary)" }}>
-            {" — showing scores through Episode "}
-            {maxSeenEpisode > 0 ? maxSeenEpisode : "pre-season"}.
-          </span>
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-sm font-bold" style={{ color: "var(--color-text)" }}>
+              {currentEpisode - maxSeenEpisode === 1
+                ? `Episode ${currentEpisode} is available`
+                : `${currentEpisode - maxSeenEpisode} new episodes available`}
+            </span>
+            <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
+              Showing scores thru Episode {maxSeenEpisode > 0 ? maxSeenEpisode : "Pre-Season"}
+            </span>
+          </div>
+          <button
+            onClick={() => markAllSeenThrough(currentEpisode)}
+            disabled={isMarking}
+            className="flex-shrink-0 px-3.5 py-2 rounded-lg text-sm font-bold text-white transition-opacity disabled:opacity-50"
+            style={{ backgroundColor: "var(--color-primary)" }}
+          >
+            {isMarking ? "…" : currentEpisode - maxSeenEpisode === 1 ? "I've seen it" : "Catch up"}
+          </button>
         </div>
       )}
 
