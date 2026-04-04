@@ -463,11 +463,15 @@ export default function MyPicksPage() {
                       backgroundColor:
                         answer === undefined
                           ? "rgba(142,142,147,0.1)"
+                          : isResolved && !isCorrect
+                          ? "rgba(142,142,147,0.1)"
                           : answer
                           ? "rgba(52,199,89,0.12)"
                           : "rgba(255,59,48,0.1)",
                       color:
                         answer === undefined
+                          ? "var(--color-text-muted)"
+                          : isResolved && !isCorrect
                           ? "var(--color-text-muted)"
                           : answer
                           ? "var(--color-success)"

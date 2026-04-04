@@ -156,7 +156,7 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
         if (!q) return null;
         return { questionId: o.question_id, text: q.text, points: q.points, outcome: o.outcome };
       })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+      .filter((x): x is { questionId: number; text: string; points: number; outcome: boolean } => x !== null);
   }, [prophecyOutcomes]);
 
   const isLoading = episodeLoading || eventsLoading;

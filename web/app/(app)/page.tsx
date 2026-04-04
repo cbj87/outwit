@@ -460,13 +460,21 @@ function ProphecyPicksTab({ activeGroupId, session }: { activeGroupId: string; s
                         marginLeft: (COL - 24) / 2,
                         marginRight: (COL - 24) / 2,
                         fontSize: 9,
-                        backgroundColor: answer
-                          ? isCorrect ? "rgba(34,197,94,0.2)" : isWrong ? "rgba(196,64,47,0.15)" : "rgba(34,197,94,0.1)"
-                          : isWrong ? "rgba(34,197,94,0.15)" : "rgba(196,64,47,0.1)",
-                        color: answer
-                          ? isCorrect ? "#16a34a" : isWrong ? "var(--color-primary)" : "#22c55e"
-                          : isWrong ? "#16a34a" : "var(--color-primary)",
-                        border: `1px solid ${answer ? "rgba(34,197,94,0.3)" : "rgba(196,64,47,0.3)"}`,
+                        backgroundColor: isCorrect
+                          ? "rgba(34,197,94,0.2)"
+                          : isWrong
+                          ? "rgba(196,64,47,0.15)"
+                          : answer
+                          ? "rgba(34,197,94,0.1)"
+                          : "rgba(196,64,47,0.1)",
+                        color: isCorrect
+                          ? "#16a34a"
+                          : isWrong
+                          ? "var(--color-primary)"
+                          : answer
+                          ? "#22c55e"
+                          : "var(--color-primary)",
+                        border: `1px solid ${isCorrect ? "rgba(34,197,94,0.3)" : isWrong ? "rgba(196,64,47,0.3)" : answer ? "rgba(34,197,94,0.2)" : "rgba(196,64,47,0.2)"}`,
                       }}
                       title={`${m.name}: ${answer ? "Yes" : "No"}`}
                     >
