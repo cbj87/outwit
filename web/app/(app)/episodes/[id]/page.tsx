@@ -149,14 +149,15 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
       });
   }, [events, castawayMap, epNum]);
 
-  const prophecyResolutions = useMemo(() => {
-    return prophecyOutcomes
-      .map((o: { question_id: number; outcome: boolean }) => {
-        const q = PROPHECY_QUESTIONS.find((q) => q.id === o.question_id);
-        if (!q) return null;
-        return { questionId: o.question_id, text: q.text, points: q.points, outcome: o.outcome };
-      })
-      .filter((x): x is { questionId: number; text: string; points: number; outcome: boolean } => x !== null);
+  type ProphecyResolution = { questionId: number; text: string; points: number; outcome: boolean };
+
+  const prophecyResolutions = useMemo((): ProphecyResolution[] => {
+    const results: ProphecyResolution[] = [];
+    for (const o of prophecyOutcomes as { question_id: number; outcome: boolean }[]) {
+      const q = PROPHECY_QUESTIONS.find((q) => q.id === o.question_id);
+      if (q) results.push({ questionId: o.question_id, text: q.text, points: q.points, outcome: o.outcome });
+    }
+    return results;
   }, [prophecyOutcomes]);
 
   const isLoading = episodeLoading || eventsLoading;

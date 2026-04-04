@@ -9,7 +9,7 @@ export function useEpisodeSeenStatus() {
 
   const queryKey = ["episode-seen-status", userId];
 
-  const query = useQuery({
+  const query = useQuery<number[]>({
     queryKey,
     queryFn: async () => {
       const supabase = createClient();
@@ -29,7 +29,9 @@ export function useEpisodeSeenStatus() {
     [seenEpisodes]
   );
 
-  const markOneMutation = useMutation({
+  type SeenContext = { previous?: number[] };
+
+  const markOneMutation = useMutation<void, Error, number, SeenContext>({
     mutationFn: async (episodeNumber: number) => {
       if (!userId) return;
       const supabase = createClient();
@@ -51,7 +53,7 @@ export function useEpisodeSeenStatus() {
       });
       return { previous };
     },
-    onError: (_err: unknown, _ep: unknown, context: { previous?: number[] } | undefined) => {
+    onError: (_err: Error, _ep: number, context: SeenContext | undefined) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
     },
     onSettled: () => {
@@ -59,7 +61,7 @@ export function useEpisodeSeenStatus() {
     },
   });
 
-  const markThroughMutation = useMutation({
+  const markThroughMutation = useMutation<void, Error, number, SeenContext>({
     mutationFn: async (throughEpisode: number) => {
       if (!userId || throughEpisode < 1) return;
       const rows: { player_id: string; episode_number: number }[] = [];
@@ -82,7 +84,7 @@ export function useEpisodeSeenStatus() {
       });
       return { previous };
     },
-    onError: (_err: unknown, _through: unknown, context: { previous?: number[] } | undefined) => {
+    onError: (_err: Error, _through: number, context: SeenContext | undefined) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
     },
     onSettled: () => {

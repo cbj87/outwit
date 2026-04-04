@@ -9,7 +9,9 @@ import { PageHeading } from "@/components/PageHeading";
 export default function EpisodesPage() {
   const session = useAuthStore((s) => s.session);
 
-  const { data: episodes = [], isLoading } = useQuery({
+  type Episode = { id: number; episode_number: number; is_merge: boolean; is_finale: boolean };
+
+  const { data: episodes = [], isLoading } = useQuery<Episode[]>({
     queryKey: ["episodes-finalized"],
     queryFn: async () => {
       const supabase = createClient();
@@ -18,7 +20,7 @@ export default function EpisodesPage() {
         .select("id, episode_number, is_merge, is_finale")
         .eq("is_finalized", true)
         .order("episode_number", { ascending: true });
-      return data ?? [];
+      return (data ?? []) as Episode[];
     },
     enabled: !!session,
     staleTime: 1000 * 60 * 5,
