@@ -99,8 +99,13 @@ export default function CastawayDetailPage() {
     return sum + (EVENT_SCORES[event.event_type] ?? 0);
   }, 0);
 
-  const ickyTotal = castaway.final_placement
-    ? (ICKY_PICK_SCORES[castaway.final_placement] ?? 0)
+  // For active jury members, final_placement isn't persisted yet — infer provisionally
+  const hasJuryEvent = events.some((e) => e.event_type === "made_jury");
+  const effectivePlacement =
+    castaway.final_placement ?? (castaway.is_active && hasJuryEvent ? "jury" : null);
+
+  const ickyTotal = effectivePlacement
+    ? (ICKY_PICK_SCORES[effectivePlacement] ?? 0)
     : 0;
 
   return (
@@ -385,10 +390,10 @@ export default function CastawayDetailPage() {
           <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
             Points based on final placement only — no event or survival points apply.
           </p>
-          {castaway.final_placement ? (
+          {effectivePlacement ? (
             <div className="flex items-center justify-between py-2">
               <span className="text-base font-bold" style={{ color: "var(--color-text)" }}>
-                {PLACEMENT_LABELS[castaway.final_placement] ?? castaway.final_placement}
+                {PLACEMENT_LABELS[effectivePlacement] ?? effectivePlacement}
               </span>
               <span
                 className="text-lg font-black"

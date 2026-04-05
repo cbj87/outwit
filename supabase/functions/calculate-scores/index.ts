@@ -196,6 +196,12 @@ Deno.serve(async (req) => {
           placement = lastEpisode < mergeEpisode ? 'pre_merge' : 'jury';
         }
         placementFixes.push({ id: c.id, final_placement: placement });
+      } else if (!placement && c.is_active) {
+        // Still playing — infer jury for icky scoring if they've made the jury.
+        // Don't persist: their final placement may improve to 3rd/runner_up/winner.
+        const castawayEvents = allEvents.filter((e: any) => e.castaway_id === c.id);
+        const hasJury = castawayEvents.some((e: any) => e.event_type === 'made_jury');
+        if (hasJury) placement = 'jury';
       }
       castawayPlacementMap.set(c.id, placement);
     });
