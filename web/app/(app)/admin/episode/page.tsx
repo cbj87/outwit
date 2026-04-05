@@ -100,6 +100,17 @@ export default function EpisodeAdminPage() {
     [castaways]
   );
 
+  // For the "Voted Off" grid: include active castaways plus any inactive ones
+  // already in votedOff (i.e. voted out in this episode and loaded from saved events).
+  // A castaway should only be unselectable starting from the NEXT episode after they leave.
+  const votedOffGridCastaways = useMemo(() => {
+    const activeIds = new Set(activeCastaways.map((c) => c.id));
+    const inactiveAlreadyVotedOff = (castaways ?? []).filter(
+      (c) => !activeIds.has(c.id) && votedOff.has(c.id)
+    );
+    return [...activeCastaways, ...inactiveAlreadyVotedOff];
+  }, [activeCastaways, castaways, votedOff]);
+
   const remainingCastaways = useMemo(
     () => activeCastaways.filter((c) => !votedOff.has(c.id)),
     [activeCastaways, votedOff]
@@ -659,7 +670,7 @@ export default function EpisodeAdminPage() {
           Who left the game this episode?
         </p>
         <CastawayChipGrid
-          castaways={activeCastaways}
+          castaways={votedOffGridCastaways}
           byTribe={byTribe ?? {}}
           tribeColors={tribeColors}
           selected={votedOff}
