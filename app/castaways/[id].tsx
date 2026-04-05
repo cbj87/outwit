@@ -13,6 +13,7 @@ import type { Castaway, CastawayEvent } from '@/types';
 const PLACEMENT_LABELS: Record<string, string> = {
   first_boot: 'First Boot',
   pre_merge: 'Pre-Merge',
+  merged: 'Merged (Pre-Jury)',
   jury: 'Jury Member',
   '3rd': '3rd Place',
   runner_up: 'Runner-Up',
@@ -83,6 +84,11 @@ export default function CastawayDetailScreen() {
   const tribeColor = tribeColors[castaway.original_tribe] ?? colors.textMuted;
   const pickData = castawayPickMap?.get(Number(id));
 
+  // voted_out is a 0-pt base marker — filter from display (placement shown in header)
+  const ELIMINATION_EVENT_TYPES = ['voted_out', 'voted_out_unanimously', 'voted_out_with_idol', 'voted_out_with_advantage', 'first_boot', 'quit'];
+  const displayEvents = events.filter((e) => e.event_type !== 'voted_out');
+  const eliminationEpisode = events.find((e) => ELIMINATION_EVENT_TYPES.includes(e.event_type))?.episodes?.episode_number;
+
   // Compute Trusted Trio total (events + survival)
   const trioTotal = events.reduce((sum, event) => {
     if (event.event_type === 'survived_episode') {
@@ -105,10 +111,12 @@ export default function CastawayDetailScreen() {
         </View>
         <Text style={styles.name}>{castaway.name}</Text>
         <Text style={[styles.status, !castaway.is_active && styles.statusEliminated]}>
-          {castaway.is_active ? 'Active' : castaway.final_placement ? castaway.final_placement.replace('_', ' ').toUpperCase() : 'Eliminated'}
+          {castaway.is_active
+            ? 'Active'
+            : PLACEMENT_LABELS[castaway.final_placement ?? ''] ?? 'Eliminated'}
         </Text>
-        {castaway.boot_order && (
-          <Text style={styles.bootOrder}>Eliminated: Episode {castaway.boot_order}</Text>
+        {eliminationEpisode && (
+          <Text style={styles.bootOrder}>Eliminated: Episode {eliminationEpisode}</Text>
         )}
       </View>
 
@@ -138,10 +146,10 @@ export default function CastawayDetailScreen() {
         <Text style={styles.scoringCardSubtitle}>
           Points earned from events + survival if this castaway is in your Trusted Trio.
         </Text>
-        {events.length === 0 ? (
+        {displayEvents.length === 0 ? (
           <Text style={styles.noEventsInline}>No events logged yet.</Text>
         ) : (
-          events.map((event) => {
+          displayEvents.map((event) => {
             const pts = event.event_type === 'survived_episode'
               ? getSurvivalPoints(event.episodes?.episode_number ?? 0)
               : EVENT_SCORES[event.event_type];
