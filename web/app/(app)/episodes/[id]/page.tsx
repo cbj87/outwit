@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useCastawayMap } from "@/hooks/useCastaways";
 import { useTribeColors } from "@/hooks/useTribeColors";
+import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { PageHeading } from "@/components/PageHeading";
 import {
   EVENT_SCORES,
@@ -43,8 +44,10 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const episodeId = Number(id);
   const session = useAuthStore((s) => s.session);
+  const profile = useAuthStore((s) => s.profile);
   const castawayMap = useCastawayMap();
   const tribeColors = useTribeColors();
+  const { markEpisodeSeen, seenEpisodes } = useEpisodeSeenStatus();
 
   const { data: episode, isLoading: episodeLoading } = useQuery({
     queryKey: ["episode", episodeId],
@@ -74,6 +77,13 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
   });
 
   const epNum = episode?.episode_number ?? 0;
+
+  // Auto-mark this episode as seen when the page loads (if spoiler protection is on)
+  useEffect(() => {
+    if (epNum > 0 && profile?.spoiler_protection && !seenEpisodes.has(epNum)) {
+      markEpisodeSeen(epNum);
+    }
+  }, [epNum, profile?.spoiler_protection, seenEpisodes, markEpisodeSeen]);
 
   const { data: prophecyOutcomes = [] } = useQuery({
     queryKey: ["episode-prophecy", episodeId, epNum],

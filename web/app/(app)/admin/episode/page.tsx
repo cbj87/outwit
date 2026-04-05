@@ -635,7 +635,7 @@ export default function EpisodeAdminPage() {
   const allEvents = buildEvents();
 
   return (
-    <div className="space-y-3 pb-32">
+    <div className="space-y-3 pb-52">
       {/* Episode header */}
       <div
         className="rounded-xl px-4 py-3 border"
@@ -983,8 +983,12 @@ export default function EpisodeAdminPage() {
 
       {/* Finalize button */}
       <div
-        className="fixed bottom-0 left-0 right-0 px-4 py-4 border-t"
-        style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}
+        className="fixed bottom-0 left-0 right-0 px-4 pt-3 border-t"
+        style={{
+          backgroundColor: "var(--color-surface)",
+          borderColor: "var(--color-border)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 3.75rem)",
+        }}
       >
         <button
           onClick={handleFinalize}

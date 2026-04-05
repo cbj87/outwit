@@ -37,6 +37,7 @@ export default function PlayerGalleryPage() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const { questions: bioQuestions, isLoading: questionsLoading } = useBioQuestions();
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const { data: players = [], isLoading: playersLoading } = useQuery({
     queryKey: ["player-gallery", activeGroup?.id],
@@ -63,6 +64,23 @@ export default function PlayerGalleryPage() {
     if (e.key === "ArrowRight") setViewerIndex((i) => i !== null ? Math.min(i + 1, players.length - 1) : null);
     if (e.key === "ArrowLeft") setViewerIndex((i) => i !== null ? Math.max(i - 1, 0) : null);
   }, [viewerIndex, players.length]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    setTouchStartX(e.touches[0].clientX);
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX === null || viewerIndex === null) return;
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        setViewerIndex((i) => i !== null ? Math.min(i + 1, players.length - 1) : null);
+      } else {
+        setViewerIndex((i) => i !== null ? Math.max(i - 1, 0) : null);
+      }
+    }
+    setTouchStartX(null);
+  }
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -147,9 +165,14 @@ export default function PlayerGalleryPage() {
           className="fixed inset-0 z-50 flex flex-col"
           style={{ backgroundColor: "rgba(0,0,0,0.92)" }}
           onClick={(e) => { if (e.target === e.currentTarget) setViewerIndex(null); }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+          <div
+            className="flex items-center justify-between px-5 pb-3 flex-shrink-0"
+            style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
+          >
             <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>
               {viewerIndex + 1} of {players.length}
             </span>

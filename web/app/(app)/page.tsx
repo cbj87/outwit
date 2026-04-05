@@ -137,7 +137,7 @@ interface EpisodeWithEvents {
   castaway_events: { event_type: string; castaways: { id: number; name: string } | null }[];
 }
 
-function EpisodeRecapsTab({ session }: { session: any }) {
+function EpisodeRecapsTab({ session, spoilerEnabled, maxSeenEpisode }: { session: any; spoilerEnabled: boolean; maxSeenEpisode: number }) {
   const { data: episodes = [], isLoading } = useQuery({
     queryKey: ["episode-recaps"],
     queryFn: async () => {
@@ -163,9 +163,24 @@ function EpisodeRecapsTab({ session }: { session: any }) {
     );
   }
 
+  const visibleEpisodes = spoilerEnabled
+    ? episodes.filter((ep) => ep.episode_number <= maxSeenEpisode)
+    : episodes;
+  const hiddenCount = episodes.length - visibleEpisodes.length;
+
   return (
     <div className="space-y-3">
-      {episodes.map((ep) => {
+      {hiddenCount > 0 && (
+        <div
+          className="px-4 py-3 rounded-xl border text-sm"
+          style={{ backgroundColor: "rgba(196,64,47,0.06)", borderColor: "rgba(196,64,47,0.2)", color: "var(--color-text-secondary)" }}
+        >
+          {hiddenCount === 1
+            ? "1 episode hidden — mark it as seen on the leaderboard to unlock."
+            : `${hiddenCount} episodes hidden — mark them as seen on the leaderboard to unlock.`}
+        </div>
+      )}
+      {visibleEpisodes.map((ep) => {
         const survivedIds = new Set(
           ep.castaway_events
             .filter((e) => e.event_type === "survived_episode")
@@ -863,7 +878,7 @@ export default function LeaderboardPage() {
       )}
 
       {/* Tab content */}
-      {activeTab === "recaps" && <EpisodeRecapsTab session={session} />}
+      {activeTab === "recaps" && <EpisodeRecapsTab session={session} spoilerEnabled={spoilerEnabled} maxSeenEpisode={maxSeenEpisode} />}
       {activeTab === "prophecy" && <ProphecyPicksTab activeGroupId={activeGroup.id} session={session} />}
       {activeTab === "scoring" && <ScoringTab />}
 
