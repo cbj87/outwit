@@ -11,4 +11,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Serwist only in production — keeps dev fast with no SW interference.
+async function buildConfig() {
+  if (process.env.NODE_ENV === "production") {
+    const withSerwist = (await import("@serwist/next")).default;
+    return withSerwist({
+      swSrc: "sw.ts",
+      swDest: "public/sw.js",
+      reloadOnOnline: true,
+    })(nextConfig);
+  }
+  return nextConfig;
+}
+
+export default buildConfig();
