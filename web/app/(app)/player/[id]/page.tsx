@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { useCastawayMap } from "@/hooks/useCastaways";
+import { useTribeColors } from "@/hooks/useTribeColors";
 import { PROPHECY_QUESTIONS, EVENT_LABELS, EVENT_SCORES, getSurvivalPoints } from "@shared/lib/constants";
 import type {
   Profile,
@@ -21,13 +22,6 @@ import type {
   CastawayEvent,
   EventType,
 } from "@shared/types";
-
-const TRIBE_COLORS: Record<string, string> = {
-  VATU: "#2E7D32",
-  CILA: "#1565C0",
-  KALO: "#F57F17",
-  MERGED: "#8E8E93",
-};
 
 const AVATAR_COLORS = [
   "#C4402F", "#2E7D32", "#1565C0", "#F57F17",
@@ -92,6 +86,7 @@ interface EpisodeBD {
 
 function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap: Map<number, any> }) {
   const [expanded, setExpanded] = useState(false);
+  const tribeColors = useTribeColors();
 
   return (
     <div
@@ -133,7 +128,7 @@ function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap:
               </div>
               {episode.trioBreakdowns.map(({ castawayId, points, details }) => {
                 const castaway = castawayMap.get(castawayId);
-                const tribeColor = TRIBE_COLORS[castaway?.original_tribe ?? ""] ?? "#8E8E93";
+                const tribeColor = tribeColors[castaway?.original_tribe ?? ""] ?? "#8E8E93";
                 return (
                   <div key={castawayId} className="ml-2 mb-2">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -216,6 +211,7 @@ function EpisodeRow({ episode, castawayMap }: { episode: EpisodeBD; castawayMap:
 export default function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const castawayMap = useCastawayMap();
+  const tribeColors = useTribeColors();
   const activeGroup = useAuthStore((s) => s.activeGroup);
   const viewerProfile = useAuthStore((s) => s.profile);
   const { config } = useSeasonConfig();
@@ -545,7 +541,7 @@ export default function PlayerDetailPage() {
         <div className="space-y-2">
           {trio.map((castawayId) => {
             const castaway = castawayMap.get(castawayId);
-            const tribeColor = TRIBE_COLORS[castaway?.original_tribe ?? ""] ?? "#8E8E93";
+            const tribeColor = tribeColors[castaway?.original_tribe ?? ""] ?? "#8E8E93";
             const castawayPts = needsSnapshot ? null : (trioDetailMap.get(castawayId) ?? 0);
             return (
               <Link
@@ -595,7 +591,7 @@ export default function PlayerDetailPage() {
         <SectionHeader title="Icky Pick" points={ickyPoints} />
         {(() => {
           const castaway = castawayMap.get(picks.icky_castaway);
-          const tribeColor = TRIBE_COLORS[castaway?.original_tribe ?? ""] ?? "#8E8E93";
+          const tribeColor = tribeColors[castaway?.original_tribe ?? ""] ?? "#8E8E93";
           return (
             <Link
               href={`/castaways/${picks.icky_castaway}`}

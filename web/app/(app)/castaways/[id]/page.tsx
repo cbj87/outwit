@@ -10,14 +10,8 @@ import {
   ICKY_PICK_SCORES,
   getSurvivalPoints,
 } from "@shared/lib/constants";
+import { useTribeColors } from "@/hooks/useTribeColors";
 import type { Castaway, CastawayEvent } from "@shared/types";
-
-const TRIBE_COLORS: Record<string, string> = {
-  VATU: "#2E7D32",
-  CILA: "#1565C0",
-  KALO: "#F57F17",
-  MERGED: "#8E8E93",
-};
 
 const PLACEMENT_LABELS: Record<string, string> = {
   first_boot: "First Boot",
@@ -48,6 +42,7 @@ type EventWithEpisode = CastawayEvent & {
 
 export default function CastawayDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const tribeColors = useTribeColors();
 
   const { data, isLoading } = useQuery({
     queryKey: ["castaway", id],
@@ -87,8 +82,8 @@ export default function CastawayDetailPage() {
 
   const { castaway, events } = data;
   const tribeColor =
-    TRIBE_COLORS[castaway.original_tribe] ?? TRIBE_COLORS[castaway.current_tribe] ?? "#8E8E93";
-  const currentTribeColor = TRIBE_COLORS[castaway.current_tribe] ?? tribeColor;
+    tribeColors[castaway.original_tribe] ?? tribeColors[castaway.current_tribe] ?? "#8E8E93";
+  const currentTribeColor = tribeColors[castaway.current_tribe] ?? tribeColor;
   const pickData = castawayPickMap?.get(Number(id));
 
   const trioTotal = events.reduce((sum, event) => {
