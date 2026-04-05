@@ -20,7 +20,7 @@ export function useEpisodeSeenStatus() {
       return (data ?? []).map((r: { episode_number: number }) => r.episode_number);
     },
     enabled: !!userId,
-    staleTime: Infinity,
+    staleTime: 0,
   });
 
   const seenEpisodes = useMemo(() => new Set(query.data ?? []), [query.data]);
