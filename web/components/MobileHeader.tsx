@@ -31,10 +31,12 @@ export function MobileHeader() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b flex items-center justify-between px-4 h-12 md:hidden"
+      className="sticky top-0 z-50 border-b flex items-end justify-between px-4 pb-2 md:hidden"
       style={{
         backgroundColor: "var(--color-surface)",
         borderColor: "var(--color-border)",
+        paddingTop: "env(safe-area-inset-top)",
+        minHeight: "calc(3rem + env(safe-area-inset-top))",
       }}
     >
       <span
