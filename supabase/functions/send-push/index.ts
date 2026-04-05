@@ -105,12 +105,6 @@ Deno.serve(async (req) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  // Only callable with service role key
-  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
-  if (token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
-    return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
-  }
-
   const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')!;
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')!;
   const vapidSubject = Deno.env.get('VAPID_SUBJECT')!;
