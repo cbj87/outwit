@@ -1,10 +1,12 @@
 import { NavBar } from "@/components/NavBar";
 import { BottomTabBar } from "@/components/BottomTabBar";
 import { MobileHeader } from "@/components/MobileHeader";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <PullToRefresh />
       {/* Desktop: sticky top nav. Mobile: slim brand header */}
       <NavBar />
       <MobileHeader />
