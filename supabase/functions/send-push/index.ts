@@ -1,7 +1,9 @@
 // ============================================================
 // send-push Edge Function
 // Sends Web Push notifications to all subscribers.
-// Called fire-and-forget from calculate-scores after an episode is finalized.
+// Uses VAPID authentication with JWK key import (no manual DER encoding).
+// Sends a signal-only push (no encrypted payload) — notification content
+// is defined in the service worker.
 // ============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -10,8 +12,6 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
-
-// ── VAPID helpers ────────────────────────────────────────────────────────────
 
 function base64UrlToUint8Array(base64: string): Uint8Array {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -27,24 +27,36 @@ function uint8ArrayToBase64Url(arr: Uint8Array): string {
     .replace(/=/g, '');
 }
 
-async function buildVapidJwt(audience: string, subject: string, privateKeyB64: string): Promise<string> {
-  const header = uint8ArrayToBase64Url(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = uint8ArrayToBase64Url(
-    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: now + 43200, sub: subject }))
-  );
-  const sigInput = `${header}.${payload}`;
+async function buildVapidJwt(
+  audience: string,
+  subject: string,
+  vapidPublicKey: string,
+  vapidPrivateKey: string,
+): Promise<string> {
+  // Extract x, y from uncompressed public key (0x04 || x[32] || y[32])
+  const pubBytes = base64UrlToUint8Array(vapidPublicKey);
+  const x = uint8ArrayToBase64Url(pubBytes.slice(1, 33));
+  const y = uint8ArrayToBase64Url(pubBytes.slice(33, 65));
 
-  const keyData = base64UrlToUint8Array(privateKeyB64);
   const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    // Wrap raw 32-byte EC private key in PKCS#8 DER envelope for P-256
-    buildPkcs8Der(keyData),
+    'jwk',
+    { kty: 'EC', crv: 'P-256', d: vapidPrivateKey, x, y },
     { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['sign'],
   );
 
+  const header = uint8ArrayToBase64Url(
+    new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })),
+  );
+  const now = Math.floor(Date.now() / 1000);
+  const payload = uint8ArrayToBase64Url(
+    new TextEncoder().encode(
+      JSON.stringify({ aud: audience, exp: now + 43200, sub: subject }),
+    ),
+  );
+
+  const sigInput = `${header}.${payload}`;
   const signature = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     cryptoKey,
@@ -54,51 +66,24 @@ async function buildVapidJwt(audience: string, subject: string, privateKeyB64: s
   return `${sigInput}.${uint8ArrayToBase64Url(new Uint8Array(signature))}`;
 }
 
-// Wrap a raw 32-byte P-256 private key scalar in a PKCS#8 DER structure
-function buildPkcs8Der(rawKey: Uint8Array): ArrayBuffer {
-  // ECPrivateKey structure for P-256 (OID 1.2.840.10045.3.1.7)
-  const ecPrivateKey = new Uint8Array([
-    0x30, 0x77,                         // SEQUENCE
-    0x02, 0x01, 0x01,                   // INTEGER version=1
-    0x04, 0x20, ...rawKey,              // OCTET STRING (32 bytes)
-    0xa0, 0x0a,                         // [0] EXPLICIT
-    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, // OID P-256
-    0xa1, 0x44,                         // [1] EXPLICIT
-    0x03, 0x42, 0x00,                   // BIT STRING
-    // Public key placeholder — not needed for signing, fill with zeros
-    ...new Uint8Array(65),
-  ]);
-  // Wrap in PKCS#8 PrivateKeyInfo
-  const oid = new Uint8Array([0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07]);
-  const inner = new Uint8Array([0x04, ecPrivateKey.length, ...ecPrivateKey]);
-  const outer = new Uint8Array([0x30, oid.length + inner.length, ...oid, ...inner]);
-  return outer.buffer;
-}
-
 async function sendWebPush(
-  subscription: { endpoint: string; p256dh: string; auth_key: string },
-  payload: string,
+  endpoint: string,
   vapidPublicKey: string,
   vapidPrivateKey: string,
   vapidSubject: string,
 ): Promise<Response> {
-  const url = new URL(subscription.endpoint);
+  const url = new URL(endpoint);
   const audience = `${url.protocol}//${url.host}`;
-  const jwt = await buildVapidJwt(audience, vapidSubject, vapidPrivateKey);
+  const jwt = await buildVapidJwt(audience, vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-  return fetch(subscription.endpoint, {
+  return fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Authorization': `vapid t=${jwt},k=${vapidPublicKey}`,
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'TTL': '86400',
+      Authorization: `vapid t=${jwt},k=${vapidPublicKey}`,
+      TTL: '86400',
     },
-    body: new TextEncoder().encode(payload),
   });
 }
-
-// ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
@@ -109,48 +94,47 @@ Deno.serve(async (req) => {
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')!;
   const vapidSubject = Deno.env.get('VAPID_SUBJECT')!;
 
-  const body = await req.json().catch(() => ({}));
-  const episodeNumber: number | undefined = body.episode_number;
-
   const { data: subscriptions, error } = await supabase
     .from('push_subscriptions')
-    .select('endpoint, p256dh, auth_key');
+    .select('endpoint');
 
-  if (error || !subscriptions?.length) {
-    return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
+  if (error) {
+    console.error('DB error:', error.message);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  const payload = JSON.stringify({
-    title: 'Outwit Open',
-    body: episodeNumber
-      ? `Episode ${episodeNumber} scores are in — check the leaderboard!`
-      : 'Scores have been updated!',
-    url: '/',
-  });
+  if (!subscriptions?.length) {
+    return new Response(JSON.stringify({ sent: 0, total: 0 }), { status: 200 });
+  }
 
   const staleEndpoints: string[] = [];
 
   const results = await Promise.allSettled(
     subscriptions.map(async (sub) => {
-      const res = await sendWebPush(sub, payload, vapidPublicKey, vapidPrivateKey, vapidSubject);
-      if (res.status === 410 || res.status === 404) {
-        staleEndpoints.push(sub.endpoint);
+      try {
+        const res = await sendWebPush(sub.endpoint, vapidPublicKey, vapidPrivateKey, vapidSubject);
+        if (res.status === 410 || res.status === 404) {
+          staleEndpoints.push(sub.endpoint);
+        }
+        if (!res.ok && res.status !== 410 && res.status !== 404) {
+          const body = await res.text();
+          console.error(`Push failed ${res.status}:`, body);
+        }
+        return res.status;
+      } catch (err) {
+        console.error('Push error:', err);
+        throw err;
       }
-      return res.status;
-    })
+    }),
   );
 
-  // Clean up expired subscriptions
   if (staleEndpoints.length > 0) {
-    await supabase
-      .from('push_subscriptions')
-      .delete()
-      .in('endpoint', staleEndpoints);
+    await supabase.from('push_subscriptions').delete().in('endpoint', staleEndpoints);
   }
 
-  const sent = results.filter((r) => r.status === 'fulfilled').length;
-  return new Response(JSON.stringify({ sent, total: subscriptions.length }), {
-    headers: { 'Content-Type': 'application/json' },
-    status: 200,
-  });
+  const sent = results.filter((r) => r.status === 'fulfilled' && (r.value === 201 || r.value === 200)).length;
+  return new Response(
+    JSON.stringify({ sent, total: subscriptions.length }),
+    { headers: { 'Content-Type': 'application/json' }, status: 200 },
+  );
 });
