@@ -223,29 +223,34 @@ export default function MyPicksScreen() {
         const outcome = outcomesMap.get(q.id);
         const isResolved = outcome !== null && outcome !== undefined;
         const isCorrect = isResolved && answer === outcome;
+        const tintColor = isResolved
+          ? isCorrect ? colors.success + '30' : colors.error + '20'
+          : undefined;
         return (
-          <Glass key={q.id} style={[styles.prophecyRow, isResolved && (isCorrect ? styles.prophecyRowCorrect : styles.prophecyRowWrong)]}>
-            <View style={styles.prophecyLeft}>
-              <Text style={[styles.prophecyText, isResolved && !isCorrect && styles.prophecyTextWrong]}>{q.text}</Text>
-              {isResolved && (
-                <Text style={[styles.prophecyResult, isCorrect ? styles.prophecyResultCorrect : styles.prophecyResultWrong]}>
-                  {isCorrect ? `+${q.points}pt` : '+0pt'}
+          <View key={q.id} style={styles.prophecyRowClip}>
+            <Glass style={[styles.prophecyRow, isResolved && (isCorrect ? styles.prophecyRowCorrect : styles.prophecyRowWrong)]} tintColor={tintColor}>
+              <View style={styles.prophecyLeft}>
+                <Text style={[styles.prophecyText, isResolved && !isCorrect && styles.prophecyTextWrong]}>{q.text}</Text>
+                {isResolved && (
+                  <Text style={[styles.prophecyResult, isCorrect ? styles.prophecyResultCorrect : styles.prophecyResultWrong]}>
+                    {isCorrect ? `+${q.points}pt` : '+0pt'}
+                  </Text>
+                )}
+              </View>
+              <View style={styles.prophecyRight}>
+                <Text style={[styles.prophecyAnswer, isResolved ? (isCorrect ? styles.answerYes : styles.answerWrong) : (answer ? styles.answerYes : styles.answerNo)]}>
+                  {answer ? 'YES' : 'NO'}
                 </Text>
-              )}
-            </View>
-            <View style={styles.prophecyRight}>
-              <Text style={[styles.prophecyAnswer, answer ? styles.answerYes : styles.answerNo]}>
-                {answer ? 'YES' : 'NO'}
-              </Text>
-              {isResolved ? (
-                <Text style={isCorrect ? styles.prophecyCorrectIcon : styles.prophecyWrongIcon}>
-                  {isCorrect ? '\u2713' : '\u2717'}
-                </Text>
-              ) : (
-                <Text style={styles.prophecyPending}>{q.points}pt</Text>
-              )}
-            </View>
-          </Glass>
+                {isResolved ? (
+                  <Text style={isCorrect ? styles.prophecyCorrectIcon : styles.prophecyWrongIcon}>
+                    {isCorrect ? '\u2713' : '\u2717'}
+                  </Text>
+                ) : (
+                  <Text style={styles.prophecyPending}>{q.points}pt</Text>
+                )}
+              </View>
+            </Glass>
+          </View>
         );
       })}
     </ScrollView>
@@ -312,7 +317,8 @@ const styles = StyleSheet.create({
   castawayPoints: { color: colors.scorePositive, fontSize: 14, fontWeight: '700' },
   castawayPointsHidden: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   negative: { color: colors.scoreNegative },
-  prophecyRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, marginHorizontal: 16, marginBottom: 2, borderRadius: 14, gap: 8, overflow: 'hidden' },
+  prophecyRowClip: { marginHorizontal: 16, marginBottom: 2, borderRadius: 14, overflow: 'hidden' },
+  prophecyRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   prophecyRowCorrect: { backgroundColor: colors.success + '10' },
   prophecyRowWrong: { backgroundColor: colors.error + '08' },
   prophecyLeft: { flex: 1, gap: 2 },
@@ -325,6 +331,7 @@ const styles = StyleSheet.create({
   prophecyAnswer: { fontSize: 12, fontWeight: '800' },
   answerYes: { color: colors.success },
   answerNo: { color: colors.error },
+  answerWrong: { color: colors.textMuted },
   prophecyCorrectIcon: { color: colors.success, fontSize: 14, fontWeight: '900' },
   prophecyWrongIcon: { color: colors.error, fontSize: 14, fontWeight: '900' },
   prophecyPending: { color: colors.textMuted, fontSize: 10 },

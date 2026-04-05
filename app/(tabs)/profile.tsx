@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   Alert,
   TextInput,
   ActivityIndicator,
-  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -325,12 +325,22 @@ export default function ProfileScreen() {
         {isTogglingSpoiler ? (
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
-          <Switch
-            value={profile?.spoiler_protection ?? true}
-            onValueChange={handleToggleSpoilerProtection}
-            trackColor={{ false: colors.border, true: colors.primary + '60' }}
-            thumbColor={profile?.spoiler_protection ? colors.primary : colors.textMuted}
-          />
+          <Pressable
+            onPress={() => handleToggleSpoilerProtection(!(profile?.spoiler_protection ?? true))}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: profile?.spoiler_protection ?? true }}
+            style={[
+              styles.toggleTrack,
+              (profile?.spoiler_protection ?? true) && styles.toggleTrackOn,
+            ]}
+          >
+            <View
+              style={[
+                styles.toggleThumb,
+                (profile?.spoiler_protection ?? true) && styles.toggleThumbOn,
+              ]}
+            />
+          </Pressable>
         )}
       </Glass>
 
@@ -505,6 +515,33 @@ const styles = StyleSheet.create({
   spoilerLeft: { flex: 1, gap: 4 },
   spoilerTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   spoilerDescription: { color: colors.textSecondary, fontSize: 13 },
+
+  // Toggle
+  toggleTrack: {
+    width: 51,
+    height: 31,
+    borderRadius: 16,
+    backgroundColor: colors.border,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: {
+    backgroundColor: colors.primary,
+  },
+  toggleThumb: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    alignSelf: 'flex-start',
+  },
+  toggleThumbOn: {
+    alignSelf: 'flex-end',
+  },
 
   // Commissioner
   commissionerCard: {

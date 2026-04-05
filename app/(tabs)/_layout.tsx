@@ -1,7 +1,10 @@
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { colors } from '@/theme/colors';
+import { useIsCommissioner } from '@/hooks/useIsCommissioner';
 
 export default function TabsLayout() {
+  const isCommissioner = useIsCommissioner();
+
   return (
     <NativeTabs tintColor={colors.primary}>
       <NativeTabs.Trigger name="index">
@@ -20,10 +23,12 @@ export default function TabsLayout() {
         <Label>Profile</Label>
         <Icon sf={{ default: 'person.circle', selected: 'person.circle.fill' }} />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="admin" hidden>
-        <Label>Admin</Label>
-        <Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
-      </NativeTabs.Trigger>
+      {isCommissioner && (
+        <NativeTabs.Trigger name="admin">
+          <Label>Admin</Label>
+          <Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
+        </NativeTabs.Trigger>
+      )}
     </NativeTabs>
   );
 }

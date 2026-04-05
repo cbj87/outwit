@@ -47,7 +47,7 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
   const profile = useAuthStore((s) => s.profile);
   const castawayMap = useCastawayMap();
   const tribeColors = useTribeColors();
-  const { markEpisodeSeen, seenEpisodes } = useEpisodeSeenStatus();
+  const { seenEpisodes, markAllSeenThrough } = useEpisodeSeenStatus();
 
   const { data: episode, isLoading: episodeLoading } = useQuery({
     queryKey: ["episode", episodeId],
@@ -78,12 +78,12 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
 
   const epNum = episode?.episode_number ?? 0;
 
-  // Auto-mark this episode as seen when the page loads (if spoiler protection is on)
+  // Auto-mark this episode (and all prior) as seen when the page loads
   useEffect(() => {
     if (epNum > 0 && profile?.spoiler_protection && !seenEpisodes.has(epNum)) {
-      markEpisodeSeen(epNum);
+      markAllSeenThrough(epNum);
     }
-  }, [epNum, profile?.spoiler_protection, seenEpisodes, markEpisodeSeen]);
+  }, [epNum, profile?.spoiler_protection, seenEpisodes, markAllSeenThrough]);
 
   const { data: prophecyOutcomes = [] } = useQuery({
     queryKey: ["episode-prophecy", episodeId, epNum],

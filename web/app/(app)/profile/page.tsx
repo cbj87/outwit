@@ -337,12 +337,12 @@ export default function ProfilePage() {
         ) : (
           <button
             onClick={() => handleToggleSpoiler(!profile.spoiler_protection)}
-            className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
+            className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0 overflow-hidden"
             style={{ backgroundColor: profile.spoiler_protection ? "var(--color-primary)" : "var(--color-border)" }}
           >
             <span
-              className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-              style={{ transform: profile.spoiler_protection ? "translateX(24px)" : "translateX(2px)" }}
+              className="absolute top-0.5 left-0 w-5 h-5 rounded-full bg-white shadow transition-transform"
+              style={{ transform: profile.spoiler_protection ? "translateX(26px)" : "translateX(2px)" }}
             />
           </button>
         )}
