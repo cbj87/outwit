@@ -66,12 +66,14 @@ export function SpoilerOnboardingModal() {
       setIsToggling(false);
       localStorage.setItem(`spoiler_onboarded_${userId}`, "1");
       setShow(false);
+      window.dispatchEvent(new CustomEvent("spoiler-onboarded"));
     }
   }
 
   function handleSkip() {
     localStorage.setItem(`spoiler_onboarded_${userId}`, "1");
     setShow(false);
+    window.dispatchEvent(new CustomEvent("spoiler-onboarded"));
   }
 
   return (
