@@ -12,12 +12,13 @@ const sw = new Serwist({
 
 sw.addEventListeners();
 
-self.addEventListener("push", (event: Event) => {
-  const pushEvent = event as unknown as { data: { json(): { title: string; body: string; url?: string } } | null; waitUntil(p: Promise<unknown>): void };
-  if (!pushEvent.data) return;
-  const data = pushEvent.data.json();
-  pushEvent.waitUntil(
-    (self as unknown as ServiceWorkerGlobalScope).registration.showNotification(data.title, {
+const swSelf = self as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+swSelf.addEventListener("push", (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!event.data) return;
+  const data = event.data.json() as { title: string; body: string; url?: string };
+  event.waitUntil(
+    swSelf.registration.showNotification(data.title, {
       body: data.body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
@@ -26,20 +27,19 @@ self.addEventListener("push", (event: Event) => {
   );
 });
 
-self.addEventListener("notificationclick", (event: Event) => {
-  const ne = event as unknown as { notification: { close(): void; data: { url: string } }; waitUntil(p: Promise<unknown>): void };
-  ne.notification.close();
-  const url = ne.notification.data?.url ?? "/";
-  ne.waitUntil(
-    (self as unknown as ServiceWorkerGlobalScope).clients
+swSelf.addEventListener("notificationclick", (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  event.notification.close();
+  const url = (event.notification.data?.url as string) ?? "/";
+  event.waitUntil(
+    swSelf.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
+      .then((clientList: any[]) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const existing = clientList.find((c) => "focus" in c);
         if (existing) {
-          (existing as WindowClient).navigate(url);
-          return (existing as WindowClient).focus();
+          existing.navigate(url);
+          return existing.focus();
         }
-        return (self as unknown as ServiceWorkerGlobalScope).clients.openWindow(url);
+        return swSelf.clients.openWindow(url);
       })
   );
 });
