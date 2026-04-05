@@ -9,6 +9,7 @@ export type FinalPlacement =
   | 'runner_up'
   | '3rd'
   | 'jury'
+  | 'merged'
   | 'pre_merge'
   | 'first_boot'
   | null;

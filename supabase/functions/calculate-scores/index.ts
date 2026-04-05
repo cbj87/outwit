@@ -39,6 +39,7 @@ const EVENT_SCORES: Record<string, number> = {
 const ICKY_PICK_SCORES: Record<string, number> = {
   first_boot: 15,
   pre_merge: 8,
+  merged: 0,
   jury: -8,
   '3rd': -15,
   winner: -25,

@@ -437,7 +437,8 @@ export default function EpisodeAdminPage() {
           else if (hasPlaced3rd) finalPlacement = "3rd";
           else if (isFirstBoot) finalPlacement = "first_boot";
           else if (!mergeHappened) finalPlacement = "pre_merge";
-          else finalPlacement = "jury";
+          else if (milestones["made_jury"]?.has(id)) finalPlacement = "jury";
+          else finalPlacement = "merged"; // merged but voted out before jury
 
           await supabase
             .from("castaways")
