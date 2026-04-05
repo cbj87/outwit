@@ -16,6 +16,7 @@ import type { Castaway, CastawayEvent } from "@shared/types";
 const PLACEMENT_LABELS: Record<string, string> = {
   first_boot: "First Boot",
   pre_merge: "Pre-Merge",
+  merged: "Merged (Pre-Jury)",
   jury: "Jury Member",
   "3rd": "3rd Place",
   runner_up: "Runner-Up",
@@ -86,6 +87,11 @@ export default function CastawayDetailPage() {
   const currentTribeColor = tribeColors[castaway.current_tribe] ?? tribeColor;
   const pickData = castawayPickMap?.get(Number(id));
 
+  // voted_out is a 0-pt base marker — filter from display (placement shown in header)
+  const ELIMINATION_EVENT_TYPES = ["voted_out", "voted_out_unanimously", "voted_out_with_idol", "voted_out_with_advantage", "first_boot", "quit"];
+  const displayEvents = events.filter((e) => e.event_type !== "voted_out");
+  const eliminationEpisode = events.find((e) => ELIMINATION_EVENT_TYPES.includes(e.event_type))?.episodes?.episode_number;
+
   const trioTotal = events.reduce((sum, event) => {
     if (event.event_type === "survived_episode") {
       return sum + getSurvivalPoints(event.episodes?.episode_number ?? 0);
@@ -133,12 +139,12 @@ export default function CastawayDetailPage() {
             ? (PLACEMENT_LABELS[castaway.final_placement] ?? castaway.final_placement)
             : "Eliminated"}
         </div>
-        {castaway.boot_order && (
+        {eliminationEpisode && (
           <div
             className="text-xs mt-1"
             style={{ color: "var(--color-text-muted)" }}
           >
-            Eliminated: Episode {castaway.boot_order}
+            Eliminated: Episode {eliminationEpisode}
           </div>
         )}
       </div>
@@ -295,7 +301,7 @@ export default function CastawayDetailPage() {
           <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
             Points earned from events + survival if this castaway is in your Trusted Trio.
           </p>
-          {events.length === 0 ? (
+          {displayEvents.length === 0 ? (
             <p
               className="text-sm italic py-2"
               style={{ color: "var(--color-text-muted)" }}
@@ -303,7 +309,7 @@ export default function CastawayDetailPage() {
               No events logged yet.
             </p>
           ) : (
-            events.map((event) => {
+            displayEvents.map((event) => {
               const pts =
                 event.event_type === "survived_episode"
                   ? getSurvivalPoints(event.episodes?.episode_number ?? 0)
