@@ -71,6 +71,8 @@ export function BottomTabBar() {
         backgroundColor: "var(--color-surface)",
         borderColor: "var(--color-border)",
         paddingBottom: "env(safe-area-inset-bottom)",
+        transform: "translateZ(0)", // fixes iOS Safari fixed-position jump on scroll
+        WebkitTransform: "translateZ(0)",
       }}
     >
       <div className="flex items-stretch">
