@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useBioQuestions } from "@/hooks/useBioQuestions";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { PageHeading } from "@/components/PageHeading";
 import type { Group } from "@shared/types";
 
@@ -43,6 +44,7 @@ export default function ProfilePage() {
   const reset = useAuthStore((s) => s.reset);
   const { config } = useSeasonConfig();
   const { questions: bioQuestions } = useBioQuestions();
+  const { isSupported: pushSupported, permission: pushPermission, isSubscribed, isSubscribing, subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications();
 
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.display_name ?? "");
@@ -347,6 +349,48 @@ export default function ProfilePage() {
           </button>
         )}
       </div>
+
+      {/* Push Notifications */}
+      {pushSupported && (
+        <div
+          className="flex items-center justify-between px-4 py-4 rounded-xl"
+          style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+        >
+          <div className="flex-1 mr-4">
+            <div className="text-base font-bold" style={{ color: "var(--color-text)" }}>
+              Episode Notifications
+            </div>
+            <div className="text-sm mt-0.5" style={{ color: "var(--color-text-secondary)" }}>
+              {pushPermission === "denied"
+                ? "Blocked in browser settings"
+                : isSubscribed
+                ? "You'll be notified when scores are updated"
+                : "Get notified when Lizzie logs a new episode"}
+            </div>
+          </div>
+          {pushPermission === "denied" ? (
+            <div className="text-xs font-semibold" style={{ color: "var(--color-text-muted)" }}>
+              Blocked
+            </div>
+          ) : isSubscribing ? (
+            <div
+              className="w-5 h-5 rounded-full border-2 animate-spin flex-shrink-0"
+              style={{ borderColor: "var(--color-primary)", borderTopColor: "transparent" }}
+            />
+          ) : (
+            <button
+              onClick={() => isSubscribed ? unsubscribePush() : subscribePush()}
+              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0 overflow-hidden"
+              style={{ backgroundColor: isSubscribed ? "var(--color-primary)" : "var(--color-border)" }}
+            >
+              <span
+                className="absolute top-0.5 left-0 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                style={{ transform: isSubscribed ? "translateX(26px)" : "translateX(2px)" }}
+              />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* My Groups */}
       <div>

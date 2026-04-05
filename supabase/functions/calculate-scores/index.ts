@@ -352,6 +352,19 @@ Deno.serve(async (req) => {
         .lt('current_episode', snapshotEpisodeNumber);
     }
 
+    // Fire-and-forget push notifications — don't await, don't fail on error
+    if (snapshotEpisodeNumber) {
+      const sendPushUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push`;
+      fetch(sendPushUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({ episode_number: snapshotEpisodeNumber }),
+      }).catch((err: Error) => console.error('send-push error:', err.message));
+    }
+
     return new Response(JSON.stringify({
       success: true,
       players_updated: totalPlayersUpdated,
