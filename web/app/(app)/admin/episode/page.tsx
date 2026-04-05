@@ -100,16 +100,18 @@ export default function EpisodeAdminPage() {
     [castaways]
   );
 
-  // IDs of castaways eliminated in finalized episodes BEFORE the current one.
-  // Only these should be hidden from the "Voted Off" grid.
-  const [eliminatedBeforeThisEpisode, setEliminatedBeforeThisEpisode] = useState<Set<number>>(new Set());
+  // IDs of castaways who were in the game at the START of this episode.
+  // Derived by querying who had a survived_episode event in the most recent
+  // finalized episode before this one. null = no prior episodes, show everyone.
+  const [eligibleForVotedOff, setEligibleForVotedOff] = useState<Set<number> | null>(null);
 
-  // For the "Voted Off" grid: show anyone not eliminated in a prior finalized episode.
-  // This correctly includes castaways who are is_active=false because they were voted
-  // out in THIS episode (e.g. after an accidental finalize/unfinalize cycle).
+  // For the "Voted Off" grid: show castaways who were in the game at the start
+  // of this episode (survived the previous episode), or everyone if ep 1.
   const votedOffGridCastaways = useMemo(
-    () => (castaways ?? []).filter((c) => !eliminatedBeforeThisEpisode.has(c.id)),
-    [castaways, eliminatedBeforeThisEpisode]
+    () => eligibleForVotedOff === null
+      ? (castaways ?? [])
+      : (castaways ?? []).filter((c) => eligibleForVotedOff.has(c.id)),
+    [castaways, eligibleForVotedOff]
   );
 
   const remainingCastaways = useMemo(
@@ -117,18 +119,20 @@ export default function EpisodeAdminPage() {
     [activeCastaways, votedOff]
   );
 
-  // Fetch IDs eliminated in finalized episodes before the given episode number.
-  async function fetchEliminatedBefore(epNumber: number): Promise<Set<number>> {
-    const supabase = createClient();
-    const priorEpIds = pastEpisodes
+  // Find who survived the most recent finalized episode before epNumber.
+  // Those survivors are exactly the castaways eligible to be voted off in epNumber.
+  // Returns null if there are no prior finalized episodes (show everyone).
+  async function fetchEligibleForVotedOff(epNumber: number): Promise<Set<number> | null> {
+    const prevEp = pastEpisodes
       .filter((ep) => ep.is_finalized && ep.episode_number < epNumber)
-      .map((ep) => ep.id);
-    if (priorEpIds.length === 0) return new Set();
+      .sort((a, b) => b.episode_number - a.episode_number)[0];
+    if (!prevEp) return null;
+    const supabase = createClient();
     const { data } = await supabase
       .from("castaway_events")
       .select("castaway_id")
-      .in("episode_id", priorEpIds)
-      .in("event_type", ["quit", "voted_out_unanimously", "voted_out_with_idol", "voted_out_with_advantage", "first_boot"]);
+      .eq("episode_id", prevEp.id)
+      .eq("event_type", "survived_episode");
     return new Set((data ?? []).map((r: { castaway_id: number }) => r.castaway_id));
   }
 
@@ -222,7 +226,7 @@ export default function EpisodeAdminPage() {
     setIdolPlays({});
     setShotInDark({});
     setMilestones({});
-    setEliminatedBeforeThisEpisode(new Set());
+    setEligibleForVotedOff(null);
     setExpandedCards(new Set(["votedOff"]));
     setIsMerge(false);
     setIsFinale(false);
@@ -289,7 +293,7 @@ export default function EpisodeAdminPage() {
       setEpisodeId(data.id);
       setIsMerge(data.is_merge ?? false);
       setIsFinale(data.is_finale ?? false);
-      fetchEliminatedBefore(data.episode_number).then(setEliminatedBeforeThisEpisode);
+      fetchEligibleForVotedOff(data.episode_number).then(setEligibleForVotedOff);
     }
   }
 
@@ -378,7 +382,7 @@ export default function EpisodeAdminPage() {
       setMilestones(mile);
     }
 
-    fetchEliminatedBefore(ep.episode_number).then(setEliminatedBeforeThisEpisode);
+    fetchEligibleForVotedOff(ep.episode_number).then(setEligibleForVotedOff);
     setIsLoadingEvents(false);
   }
 
