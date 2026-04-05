@@ -15,14 +15,25 @@ sw.addEventListeners();
 const swSelf = self as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 swSelf.addEventListener("push", (event: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (!event.data) return;
-  const data = event.data.json() as { title: string; body: string; url?: string };
+  let title = "Outwit — Scores Updated!";
+  let body = "A new episode has been finalized. Check your standings!";
+  let url = "/";
+
+  if (event.data) {
+    try {
+      const data = event.data.json() as { title?: string; body?: string; url?: string };
+      if (data.title) title = data.title;
+      if (data.body) body = data.body;
+      if (data.url) url = data.url;
+    } catch { /* ignore parse errors */ }
+  }
+
   event.waitUntil(
-    swSelf.registration.showNotification(data.title, {
-      body: data.body,
+    swSelf.registration.showNotification(title, {
+      body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      data: { url: data.url ?? "/" },
+      data: { url },
     })
   );
 });
