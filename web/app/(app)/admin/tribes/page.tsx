@@ -9,9 +9,10 @@ import { useTribeColors, useTribeColorMutation } from "@/hooks/useTribeColors";
 import type { Castaway } from "@shared/types";
 
 const COLOR_PRESETS = [
-  "#2E7D32", "#1565C0", "#F57F17", "#8E24AA",
-  "#D84315", "#00838F", "#C62828", "#8E8E93",
-  "#4E342E", "#1B5E20",
+  "#F9A825", "#F57F17", "#D84315", "#C62828",
+  "#8E24AA", "#1565C0", "#00838F", "#2E7D32",
+  "#1B5E20", "#4E342E", "#37474F", "#8E8E93",
+  "#E91E63", "#00ACC1", "#43A047", "#FB8C00",
 ];
 
 export default function TribesAdminPage() {
