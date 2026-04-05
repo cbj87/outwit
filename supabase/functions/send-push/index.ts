@@ -1,9 +1,9 @@
 // ============================================================
 // send-push Edge Function
 // Sends Web Push notifications to all subscribers.
-// Uses VAPID authentication with JWK key import (no manual DER encoding).
-// Sends a signal-only push (no encrypted payload) — notification content
-// is defined in the service worker.
+// Uses VAPID authentication with JWK key import.
+// Encrypts payload per RFC 8291 (key agreement) + RFC 8188 (aes128gcm).
+// iOS requires an encrypted payload — signal-only pushes are silently dropped.
 // ============================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -25,6 +25,97 @@ function uint8ArrayToBase64Url(arr: Uint8Array): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
+}
+
+function concat(...arrays: Uint8Array[]): Uint8Array {
+  const total = arrays.reduce((n, a) => n + a.length, 0);
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const a of arrays) { result.set(a, offset); offset += a.length; }
+  return result;
+}
+
+async function hkdf(
+  salt: Uint8Array,
+  ikm: Uint8Array,
+  info: Uint8Array,
+  length: number,
+): Promise<Uint8Array> {
+  const keyMaterial = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256', salt, info },
+    keyMaterial,
+    length * 8,
+  );
+  return new Uint8Array(bits);
+}
+
+// Encrypt push payload per RFC 8291 + RFC 8188 (aes128gcm content encoding).
+async function encryptPayload(
+  plaintext: string,
+  p256dhBase64: string,
+  authBase64: string,
+): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+
+  // Generate server ephemeral ECDH key pair
+  const serverKeyPair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    ['deriveBits'],
+  );
+  const serverPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', serverKeyPair.publicKey));
+
+  // Import subscriber's p256dh public key
+  const subscriberPublicKey = base64UrlToUint8Array(p256dhBase64);
+  const subscriberCryptoKey = await crypto.subtle.importKey(
+    'raw',
+    subscriberPublicKey,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    [],
+  );
+
+  // ECDH: derive 32-byte shared secret
+  const sharedSecret = new Uint8Array(
+    await crypto.subtle.deriveBits(
+      { name: 'ECDH', public: subscriberCryptoKey },
+      serverKeyPair.privateKey,
+      256,
+    ),
+  );
+
+  const authSecret = base64UrlToUint8Array(authBase64);
+
+  // RFC 8291 §3.3: derive IKM
+  //   info = "WebPush: info\x00" || subscriber_public || server_public
+  //   IKM  = HKDF-SHA-256(salt=authSecret, IKM=sharedSecret, info, L=32)
+  const keyInfo = concat(enc.encode('WebPush: info\x00'), subscriberPublicKey, serverPublicKey);
+  const ikm = await hkdf(authSecret, sharedSecret, keyInfo, 32);
+
+  // Generate random 16-byte salt for content encryption
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // RFC 8188 §2.1: derive CEK and NONCE from ikm + salt
+  const cek = await hkdf(salt, ikm, enc.encode('Content-Encoding: aes128gcm\x00'), 16);
+  const nonce = await hkdf(salt, ikm, enc.encode('Content-Encoding: nonce\x00'), 12);
+
+  // Encrypt with AES-128-GCM
+  const cekKey = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  // Pad with 0x02 record delimiter (RFC 8188 last-record marker)
+  const padded = concat(enc.encode(plaintext), new Uint8Array([0x02]));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce, tagLength: 128 }, cekKey, padded),
+  );
+
+  // Build ECE header: salt(16) + rs(4 big-endian) + keylen(1) + serverPublicKey(65)
+  const header = new Uint8Array(16 + 4 + 1 + serverPublicKey.length);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096, false);
+  header[20] = serverPublicKey.length; // 65 for uncompressed P-256
+  header.set(serverPublicKey, 21);
+
+  return concat(header, ciphertext);
 }
 
 async function buildVapidJwt(
@@ -68,6 +159,8 @@ async function buildVapidJwt(
 
 async function sendWebPush(
   endpoint: string,
+  p256dh: string,
+  authKey: string,
   vapidPublicKey: string,
   vapidPrivateKey: string,
   vapidSubject: string,
@@ -76,12 +169,22 @@ async function sendWebPush(
   const audience = `${url.protocol}//${url.host}`;
   const jwt = await buildVapidJwt(audience, vapidSubject, vapidPublicKey, vapidPrivateKey);
 
+  const payloadJson = JSON.stringify({
+    title: 'Outwit — Scores Updated!',
+    body: 'A new episode has been finalized. Check your standings!',
+    url: '/',
+  });
+  const encryptedBody = await encryptPayload(payloadJson, p256dh, authKey);
+
   return fetch(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `vapid t=${jwt},k=${vapidPublicKey}`,
+      'Content-Type': 'application/octet-stream',
+      'Content-Encoding': 'aes128gcm',
       TTL: '86400',
     },
+    body: encryptedBody,
   });
 }
 
@@ -96,7 +199,7 @@ Deno.serve(async (req) => {
 
   const { data: subscriptions, error } = await supabase
     .from('push_subscriptions')
-    .select('endpoint');
+    .select('endpoint, p256dh, auth_key');
 
   if (error) {
     console.error('DB error:', error.message);
@@ -112,7 +215,14 @@ Deno.serve(async (req) => {
   const results = await Promise.allSettled(
     subscriptions.map(async (sub) => {
       try {
-        const res = await sendWebPush(sub.endpoint, vapidPublicKey, vapidPrivateKey, vapidSubject);
+        const res = await sendWebPush(
+          sub.endpoint,
+          sub.p256dh,
+          sub.auth_key,
+          vapidPublicKey,
+          vapidPrivateKey,
+          vapidSubject,
+        );
         if (res.status === 410 || res.status === 404) {
           staleEndpoints.push(sub.endpoint);
         }
@@ -132,7 +242,10 @@ Deno.serve(async (req) => {
     await supabase.from('push_subscriptions').delete().in('endpoint', staleEndpoints);
   }
 
-  const sent = results.filter((r) => r.status === 'fulfilled' && (r.value === 201 || r.value === 200)).length;
+  const sent = results.filter(
+    (r) => r.status === 'fulfilled' && (r.value === 201 || r.value === 200),
+  ).length;
+
   return new Response(
     JSON.stringify({ sent, total: subscriptions.length }),
     { headers: { 'Content-Type': 'application/json' }, status: 200 },
