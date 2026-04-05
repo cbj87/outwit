@@ -78,7 +78,11 @@ export default function CastawaysPage() {
     );
   }
 
-  const tribes = Object.keys(byTribe);
+  const tribes = Object.keys(byTribe).sort(
+    (a, b) =>
+      (byTribe[b]?.filter((c) => c.is_active).length ?? 0) -
+      (byTribe[a]?.filter((c) => c.is_active).length ?? 0)
+  );
 
   return (
     <div className="space-y-6">
