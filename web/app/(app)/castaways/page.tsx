@@ -3,22 +3,12 @@
 import Link from "next/link";
 import { useCastawaysByTribe } from "@/hooks/useCastaways";
 import { useAllPicks } from "@/hooks/useAllPicks";
+import { useTribeColors } from "@/hooks/useTribeColors";
 import { PageHeading } from "@/components/PageHeading";
 import type { Castaway } from "@shared/types";
 
-const TRIBE_COLORS: Record<string, string> = {
-  VATU: "#2E7D32",
-  CILA: "#1565C0",
-  KALO: "#F57F17",
-  MERGED: "#8E8E93",
-};
-
-function getTribeColor(tribe: string) {
-  return TRIBE_COLORS[tribe] ?? "#8E8E93";
-}
-
-function CastawayRow({ castaway, pickerCount }: { castaway: Castaway; pickerCount: { trio: number; icky: number } | null }) {
-  const tribeColor = getTribeColor(castaway.original_tribe);
+function CastawayRow({ castaway, pickerCount, tribeColors }: { castaway: Castaway; pickerCount: { trio: number; icky: number } | null; tribeColors: Record<string, string> }) {
+  const tribeColor = tribeColors[castaway.original_tribe] ?? "#8E8E93";
 
   return (
     <Link
@@ -72,6 +62,7 @@ function CastawayRow({ castaway, pickerCount }: { castaway: Castaway; pickerCoun
 export default function CastawaysPage() {
   const { byTribe, isLoading } = useCastawaysByTribe();
   const { castawayPickMap, revealed } = useAllPicks();
+  const tribeColors = useTribeColors();
 
   if (isLoading || !byTribe) {
     return (
@@ -95,7 +86,7 @@ export default function CastawaysPage() {
 
       {tribes.map((tribe) => {
         const castaways = byTribe[tribe] ?? [];
-        const tribeColor = getTribeColor(tribe);
+        const tribeColor = tribeColors[tribe] ?? "#8E8E93";
         const activeCount = castaways.filter((c) => c.is_active).length;
 
         return (
@@ -132,6 +123,7 @@ export default function CastawaysPage() {
                     key={castaway.id}
                     castaway={castaway}
                     pickerCount={pickerCount}
+                    tribeColors={tribeColors}
                   />
                 );
               })}

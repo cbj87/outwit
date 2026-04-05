@@ -6,15 +6,9 @@ import { useMyPicks } from "@/hooks/useMyPicks";
 import { useSeasonConfig } from "@/hooks/useSeasonConfig";
 import { useEpisodeSeenStatus } from "@/hooks/useEpisodeSeenStatus";
 import { useCastawayMap } from "@/hooks/useCastaways";
+import { useTribeColors } from "@/hooks/useTribeColors";
 import { PageHeading } from "@/components/PageHeading";
 import { PROPHECY_QUESTIONS } from "@shared/lib/constants";
-
-const TRIBE_COLORS: Record<string, string> = {
-  VATU: "#2E7D32",
-  CILA: "#1565C0",
-  KALO: "#F57F17",
-  MERGED: "#8E8E93",
-};
 
 const AVATAR_COLORS = [
   "#C4402F", "#2E7D32", "#1565C0", "#F57F17",
@@ -70,9 +64,9 @@ function CastawayCard({
   isSpoilerFiltered: boolean;
 }) {
   const castawayMap = useCastawayMap();
+  const tribeColors = useTribeColors();
   const castaway = castawayMap.get(castawayId);
-  const tribeColor =
-    TRIBE_COLORS[castaway?.original_tribe ?? ""] ?? "#8E8E93";
+  const tribeColor = tribeColors[castaway?.original_tribe ?? ""] ?? "#8E8E93";
 
   return (
     <Link
