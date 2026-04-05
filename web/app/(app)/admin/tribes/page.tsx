@@ -158,7 +158,7 @@ export default function TribesAdminPage() {
 
             {/* Color picker */}
             {isPickingColor && (
-              <div className="flex flex-wrap gap-2 py-1">
+              <div className="flex flex-wrap gap-2 py-1 items-center">
                 {COLOR_PRESETS.map((hex) => (
                   <button
                     key={hex}
@@ -173,6 +173,21 @@ export default function TribesAdminPage() {
                     }}
                   />
                 ))}
+                {/* Full spectrum picker */}
+                <label
+                  className="w-7 h-7 rounded-full border-2 cursor-pointer overflow-hidden flex items-center justify-center"
+                  style={{ borderColor: "var(--color-border)" }}
+                  title="Custom color"
+                >
+                  <input
+                    type="color"
+                    defaultValue={tribeColor}
+                    className="opacity-0 absolute w-0 h-0"
+                    onChange={(e) => colorMutation.mutate({ tribe, color: e.target.value })}
+                    onBlur={() => setColorPickerTribe(null)}
+                  />
+                  <span className="text-base leading-none" style={{ pointerEvents: "none" }}>🎨</span>
+                </label>
               </div>
             )}
 
