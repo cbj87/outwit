@@ -12,10 +12,11 @@ const sw = new Serwist({
 
 sw.addEventListeners();
 
-self.addEventListener("push", (event: PushEvent) => {
-  if (!event.data) return;
-  const data = event.data.json() as { title: string; body: string; url?: string };
-  event.waitUntil(
+self.addEventListener("push", (event: Event) => {
+  const pushEvent = event as unknown as { data: { json(): { title: string; body: string; url?: string } } | null; waitUntil(p: Promise<unknown>): void };
+  if (!pushEvent.data) return;
+  const data = pushEvent.data.json();
+  pushEvent.waitUntil(
     (self as unknown as ServiceWorkerGlobalScope).registration.showNotification(data.title, {
       body: data.body,
       icon: "/icon-192.png",
@@ -25,10 +26,11 @@ self.addEventListener("push", (event: PushEvent) => {
   );
 });
 
-self.addEventListener("notificationclick", (event: NotificationEvent) => {
-  event.notification.close();
-  const url = (event.notification.data as { url: string }).url;
-  event.waitUntil(
+self.addEventListener("notificationclick", (event: Event) => {
+  const ne = event as unknown as { notification: { close(): void; data: { url: string } }; waitUntil(p: Promise<unknown>): void };
+  ne.notification.close();
+  const url = ne.notification.data?.url ?? "/";
+  ne.waitUntil(
     (self as unknown as ServiceWorkerGlobalScope).clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
