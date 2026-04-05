@@ -247,6 +247,7 @@ export default function EpisodeAdminPage() {
     });
 
     votedOff.forEach((id) => {
+      add(id, "voted_out"); // base marker — always written so the castaway appears in recap/reload
       const details = votedOffDetails[id];
       if (details?.has("quit")) add(id, "quit");
       if (details?.has("unanimous")) add(id, "voted_out_unanimously");
@@ -331,6 +332,7 @@ export default function EpisodeAdminPage() {
       for (const { castaway_id, event_type } of events) {
         switch (event_type) {
           case "survived_episode": break;
+          case "voted_out": off.add(castaway_id); break; // base marker, no detail
           case "quit":
           case "voted_out_unanimously":
           case "voted_out_with_idol":

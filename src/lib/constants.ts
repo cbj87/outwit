@@ -27,6 +27,7 @@ export const EVENT_SCORES: Record<EventType, number> = {
   voted_out_unanimously: -5,
   quit: -25,
   survived_episode: 0, // Variable — determined by episode phase below
+  voted_out: 0, // Base marker only — no scoring impact
 };
 
 // Survival points per episode survived, indexed by episode number (1-based)

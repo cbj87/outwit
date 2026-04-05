@@ -33,7 +33,8 @@ export type EventType =
   | 'voted_out_with_advantage'
   | 'voted_out_unanimously'
   | 'quit'
-  | 'survived_episode';
+  | 'survived_episode'
+  | 'voted_out';
 
 export interface Castaway {
   id: number;

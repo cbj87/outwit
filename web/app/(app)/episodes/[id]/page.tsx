@@ -114,13 +114,17 @@ export default function EpisodeDetailPage({ params }: { params: Promise<{ id: st
         const castawayId = Number(idStr);
         const castaway = castawayMap.get(castawayId);
         const survived = eventList.includes("survived_episode" as EventType);
-        const notable = eventList.filter((e) => e !== "survived_episode");
+        // voted_out is a base marker only — not a scoring event, filtered from display
+        const notable = eventList.filter((e) => e !== "survived_episode" && e !== "voted_out");
 
         const trioEvents: { label: string; points: number }[] = [];
         let trioTotal = 0;
         if (survived) {
           trioEvents.push({ label: "Survived", points: survivalPts });
           trioTotal += survivalPts;
+        } else if (notable.length === 0) {
+          // Plain voted-out castaway with no special circumstances
+          trioEvents.push({ label: "Voted Out", points: 0 });
         }
         for (const e of notable) {
           const p = EVENT_SCORES[e] ?? 0;
