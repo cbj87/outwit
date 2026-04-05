@@ -30,4 +30,6 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
+  /* Prevent iOS rubber-band from consuming touches before our pull-to-refresh handler */
+  overscroll-behavior-y: none;
 }

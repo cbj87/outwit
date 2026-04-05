@@ -6,10 +6,11 @@ import { useEffect, useRef, useState } from "react";
 // Raw finger movement needed to trigger a refresh
 const PULL_THRESHOLD = 80;
 // Max visual pull distance (dampened)
-const MAX_VISUAL = 52;
+const MAX_VISUAL = 48;
 
 export function PullToRefresh() {
   const queryClient = useQueryClient();
+  const [mounted, setMounted] = useState(false);
   const [visual, setVisual] = useState(0); // px to translate the spinner down
   const [refreshing, setRefreshing] = useState(false);
 
@@ -29,14 +30,12 @@ export function PullToRefresh() {
       if (startYRef.current === null) return;
       const delta = e.touches[0].clientY - startYRef.current;
       if (delta <= 0) {
-        // Scrolling up — cancel tracking
         startYRef.current = null;
         rawPullRef.current = 0;
         setVisual(0);
         return;
       }
-      // Prevent native scroll bounce while pulling
-      if (delta > 8) e.preventDefault();
+      e.preventDefault();
       rawPullRef.current = delta;
       // Dampen: sqrt curve so it feels natural and caps near MAX_VISUAL
       const dampened = Math.min(Math.sqrt(delta) * 4, MAX_VISUAL);
@@ -59,6 +58,7 @@ export function PullToRefresh() {
       }
     };
 
+    setMounted(true);
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd);
@@ -69,16 +69,24 @@ export function PullToRefresh() {
     };
   }, [queryClient]);
 
+  if (!mounted) return null;
+
   const visible = visual > 0 || refreshing;
-  const translateY = refreshing ? MAX_VISUAL : visual;
+  // Spinner lives just below the sticky header. It starts hidden above its
+  // natural position and slides down into view as the user pulls.
+  // Header height = 3rem + safe-area-inset-top (≈48px + 44px on iPhone = ~92px).
+  // We anchor the spinner 16px below the header and translate it up by its own
+  // height (32px) so it's fully hidden at rest, then slides into view.
+  const translateY = refreshing ? 0 : visual - MAX_VISUAL;
 
   return (
     <div
       aria-hidden
-      className="fixed top-0 left-0 right-0 flex justify-center pointer-events-none z-50"
+      className="fixed left-0 right-0 flex justify-center pointer-events-none z-40"
       style={{
-        transform: `translateY(calc(${translateY}px - 44px))`,
-        transition: visual === 0 ? "transform 0.25s ease" : "none",
+        top: "calc(3rem + env(safe-area-inset-top) + 16px)",
+        transform: `translateY(${translateY}px)`,
+        transition: visual === 0 && !refreshing ? "transform 0.25s ease" : "none",
         opacity: visible ? 1 : 0,
       }}
     >
