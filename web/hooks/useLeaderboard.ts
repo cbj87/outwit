@@ -56,8 +56,10 @@ async function fetchLeaderboard(options: Options) {
     (maxSeenEpisode ?? 0) < currentEpisode &&
     currentEpisode > 0;
   const snapshotEp = maxSeenEpisode ?? 0;
+  const displayEp = needsSnapshot ? snapshotEp : currentEpisode;
+  const prevEp = displayEp - 1;
 
-  const [membersRes, scoresRes, profilesRes, picksRes] = await Promise.all([
+  const [membersRes, scoresRes, profilesRes, picksRes, prevRes] = await Promise.all([
     supabase.from("group_members").select("user_id").eq("group_id", groupId),
     needsSnapshot
       ? supabase
@@ -74,6 +76,9 @@ async function fetchLeaderboard(options: Options) {
             "player_id, trio_castaway_1, trio_castaway_2, trio_castaway_3, icky_castaway"
           )
       : Promise.resolve({ data: [] as Picks[], error: null }),
+    prevEp > 0
+      ? supabase.from("score_snapshots").select("*").eq("group_id", groupId).eq("episode_number", prevEp)
+      : Promise.resolve({ data: [] as ScoreSnapshot[], error: null }),
   ]);
 
   const memberIds = new Set(
@@ -84,6 +89,7 @@ async function fetchLeaderboard(options: Options) {
     profilesRes.data as Pick<Profile, "id" | "display_name" | "avatar_url">[]
   ).filter((p) => memberIds.has(p.id));
   const picksData = (picksRes.data ?? []) as Picks[];
+  const prevScores = (prevRes.data ?? []) as ScoreSnapshot[];
   let epShown = needsSnapshot ? snapshotEp : currentEpisode;
 
   // Snapshot fallback — same logic as iOS hook
@@ -132,7 +138,35 @@ async function fetchLeaderboard(options: Options) {
     } as Omit<PlayerScore, "rank" | "is_tied">;
   });
 
-  return { entries: sortAndRankScores(combined), displayedEpisode: epShown };
+  const ranked = sortAndRankScores(combined);
+
+  // Compute rank movement vs previous episode
+  const prevRanked = sortAndRankScores(
+    prevScores
+      .filter((s) => memberIds.has(s.player_id))
+      .map((s) => {
+        const p = profiles.find((p) => p.id === s.player_id);
+        return {
+          player_id: s.player_id,
+          display_name: p?.display_name ?? "",
+          avatar_url: p?.avatar_url ?? null,
+          total_points: s.total_points,
+          trio_points: s.trio_points,
+          prophecy_points: s.prophecy_points,
+          icky_points: s.icky_points,
+          trio_castaways: null,
+          icky_castaway: null,
+        } as Omit<PlayerScore, "rank" | "is_tied">;
+      })
+  );
+  const prevRankMap = new Map(prevRanked.map((p) => [p.player_id, p.rank]));
+
+  const entries = ranked.map((e) => {
+    const prev = prevRankMap.get(e.player_id);
+    return { ...e, rankDelta: prev != null ? prev - e.rank : null };
+  });
+
+  return { entries, displayedEpisode: epShown };
 }
 
 export function useLeaderboard(options: Options) {

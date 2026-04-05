@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { useState } from "react";
 import { AuthInitializer } from "./AuthInitializer";
+import { SpoilerOnboardingModal } from "./SpoilerOnboardingModal";
 
 // Created at module level — on the server, window is undefined so storage is a no-op.
 // In the browser bundle this runs with window.localStorage, giving real persistence.
@@ -36,6 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       persistOptions={{ persister, maxAge: TWENTY_FOUR_HOURS }}
     >
       <AuthInitializer />
+      <SpoilerOnboardingModal />
       {children}
     </PersistQueryClientProvider>
   );

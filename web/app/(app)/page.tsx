@@ -61,7 +61,29 @@ const NOTABLE_EVENT_LABELS: Record<string, string> = {
 
 // ─── LeaderboardRow ────────────────────────────────────────────────────────────
 
-type RankedEntry = PlayerScore & { rank: number; is_tied: boolean };
+type RankedEntry = PlayerScore & { rank: number; is_tied: boolean; rankDelta: number | null };
+
+function RankMovement({ delta }: { delta: number | null }) {
+  if (delta === null || delta === 0) {
+    return (
+      <span className="text-xs font-semibold w-6 text-center flex-shrink-0" style={{ color: "var(--color-text-muted)" }}>
+        —
+      </span>
+    );
+  }
+  if (delta > 0) {
+    return (
+      <span className="text-xs font-bold w-6 text-center flex-shrink-0" style={{ color: "var(--color-success)" }}>
+        ▲{delta}
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-bold w-6 text-center flex-shrink-0" style={{ color: "var(--color-error)" }}>
+      ▼{Math.abs(delta)}
+    </span>
+  );
+}
 
 function LeaderboardRow({ entry, picksRevealed }: { entry: RankedEntry; picksRevealed: boolean }) {
   const rankColor = RANK_COLORS[entry.rank];
@@ -108,6 +130,8 @@ function LeaderboardRow({ entry, picksRevealed }: { entry: RankedEntry; picksRev
           <span style={{ color: "var(--color-text-muted)" }}> Proph</span>
         </div>
       </div>
+
+      <RankMovement delta={entry.rankDelta} />
 
       <span className="text-xl font-black min-w-[2.5rem] text-right" style={{ color: rankColor ?? "var(--color-primary)" }}>
         {entry.total_points}
