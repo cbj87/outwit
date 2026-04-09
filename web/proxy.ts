@@ -31,7 +31,11 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+  const isAuthRoute =
+    pathname.startsWith("/sign-in") ||
+    pathname.startsWith("/sign-up") ||
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/reset-password");
 
   // Unauthenticated user hitting a protected route → redirect to sign-in
   if (!user && !isAuthRoute) {
