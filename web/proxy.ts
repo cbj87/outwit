@@ -31,21 +31,23 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthRoute =
-    pathname.startsWith("/sign-in") ||
-    pathname.startsWith("/sign-up") ||
+  // Routes that bounce authenticated users to home
+  const isSignInOrUp = pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+  // Routes that are accessible without a session (but don't bounce authed users)
+  const isPublicRoute =
+    isSignInOrUp ||
     pathname.startsWith("/auth/callback") ||
     pathname.startsWith("/reset-password");
 
   // Unauthenticated user hitting a protected route → redirect to sign-in
-  if (!user && !isAuthRoute) {
+  if (!user && !isPublicRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/sign-in";
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Authenticated user hitting an auth route → redirect to home
-  if (user && isAuthRoute) {
+  // Authenticated user hitting sign-in or sign-up → redirect to home
+  if (user && isSignInOrUp) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/";
     return NextResponse.redirect(redirectUrl);
